@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+__version__ = "1.1.1"
+__author__ = "Open Source"
+__description__ = "System tray application to prevent sleep"
 """
 Stay_Awake System Tray Application
 Keeps system awake, runs in system tray with minimal GUI

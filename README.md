@@ -12,27 +12,26 @@ A lightweight system tray application that prevents your computer from going to 
 - **Automatic Cleanup**: Restores normal power management on exit
 - **Cross-platform**: Built with Python, works on Windows (with potential for other platforms)
 
-## Antivirus False Positives
+## Microsoft Defender / Windows Security Issues
 
-**Important Notice**: Some antivirus software may flag the executable as suspicious. This is a common false positive with PyInstaller-built applications.
+**If Windows Defender flags the executable as "Trojan:Win32/Wacatac.C!ml":**
 
-**Why this happens:**
-- PyInstaller bundles Python + libraries into a single executable
-- The application prevents system sleep (legitimate functionality that malware also uses)
-- Self-extracting executables can trigger heuristic detection
+This is a machine learning false positive. The application is safe - all code is publicly available.
 
-**The application is safe because:**
-- All source code is publicly available in this repository
-- Built using GitHub Actions (publicly visible build process)
-- Uses only legitimate libraries: wakepy, pystray, tkinter, Pillow
-- No network communication or data collection
+**Quick fix:**
+1. Open Windows Security (Windows key + I → Update & Security → Windows Security)
+2. Go to "Virus & threat protection"
+3. Under "Current threats" click "Protection history"
+4. Find the Stay_Awake detection and click "Allow on device"
 
-**If your antivirus flags it:**
-- Add an exception for Stay_Awake.exe
-- Download and build from source using the provided instructions
-- Check the GitHub Actions build logs to verify the build process
+**Or add permanent exclusion:**
+1. Windows Security → Virus & threat protection
+2. "Manage settings" under Virus & threat protection settings
+3. "Add or remove exclusions" 
+4. Add the Stay_Awake.exe file or folder
 
-**VirusTotal Results**: Like many PyInstaller applications, this may show some false positives. The application contains no malicious code.
+**Submit false positive report:**
+Visit: https://www.microsoft.com/en-us/wdsi/filesubmission
 
 ## Installation
 
