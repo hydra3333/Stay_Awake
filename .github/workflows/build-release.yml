@@ -5,6 +5,9 @@ on:
     types: [created]
   workflow_dispatch:  # Allows manual triggering
 
+permissions:
+  contents: write  # Required for uploading release assets
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -46,14 +49,11 @@ jobs:
     
     - name: Upload to release (if this was triggered by a release)
       if: github.event_name == 'release'
-      uses: actions/upload-release-asset@v1
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/Stay_Awake.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: dist/Stay_Awake.exe
-        asset_name: Stay_Awake.exe
-        asset_content_type: application/octet-stream
 
   # Future: Add macOS and Linux builds
   # build-macos:
