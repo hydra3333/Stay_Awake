@@ -1,4 +1,4 @@
-__version__ = "1.1.3"
+__version__ = "1.1.4"
 __author__ = "Open Source"
 __description__ = "System tray application to prevent sleep"
 """
