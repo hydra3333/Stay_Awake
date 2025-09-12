@@ -12,9 +12,27 @@ A lightweight system tray application that prevents your computer from going to 
 - **Automatic Cleanup**: Restores normal power management on exit
 - **Cross-platform**: Built with Python, works on Windows (with potential for other platforms)
 
-## Screenshots
+## Antivirus False Positives
 
-The application shows a distinctive eye icon in the system tray and provides a clean control window.
+**Important Notice**: Some antivirus software may flag the executable as suspicious. This is a common false positive with PyInstaller-built applications.
+
+**Why this happens:**
+- PyInstaller bundles Python + libraries into a single executable
+- The application prevents system sleep (legitimate functionality that malware also uses)
+- Self-extracting executables can trigger heuristic detection
+
+**The application is safe because:**
+- All source code is publicly available in this repository
+- Built using GitHub Actions (publicly visible build process)
+- Uses only legitimate libraries: wakepy, pystray, tkinter, Pillow
+- No network communication or data collection
+
+**If your antivirus flags it:**
+- Add an exception for Stay_Awake.exe
+- Download and build from source using the provided instructions
+- Check the GitHub Actions build logs to verify the build process
+
+**VirusTotal Results**: Like many PyInstaller applications, this may show some false positives. The application contains no malicious code.
 
 ## Installation
 
