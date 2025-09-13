@@ -104,6 +104,27 @@ jobs:
           Compress-Archive -Path $paths -DestinationPath ".\${{ steps.names.outputs.onefile_zip }}" -Force -CompressionLevel Optimal
           Write-Host "Created $((Resolve-Path .\${{ steps.names.outputs.onefile_zip }}).Path)"
 
+      - name: List contents of onefile zip
+        run: |
+          $zipPath = ".\${{ steps.names.outputs.onefile_zip }}"
+          Write-Host "ZIP: $zipPath"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          "{0,12} {1,12}  {2}" -f "Size","CompSize","Name"
+          "{0,12} {1,12}  {2}" -f "----","--------","----"
+          foreach ($e in $z.Entries) {
+            "{0,12:N0} {1,12:N0}  {2}" -f $e.Length, $e.CompressedLength, $e.FullName
+          }
+          $z.Dispose()
+          # Optional: quick presence checks (won't fail the job)
+          $hasExe   = (Expand-String "${{ steps.names.outputs.app }}.exe")
+          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
+          $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          $names = $z.Entries | ForEach-Object FullName
+          $z.Dispose()
+          if ($names -notcontains $hasExe) { Write-Warning "EXE not found in onefile zip." }
+          if (-not ($names | Where-Object { $_ -in $iconLike })) { Write-Warning "No icon file found in onefile zip." }
+
       - name: PyInstaller (onedir, windowed, no console)
         run: |
           pyinstaller --clean --onedir --windowed --noconsole --name "${{ steps.names.outputs.app }}" Stay_Awake.py
@@ -122,12 +143,12 @@ jobs:
           }
           if ($icons.Count -gt 0) {
             Copy-Item -Path $icons -Destination $appDir -Force
-            Write-Host "Copied icons to $appDir:"
+            Write-Host "Copied icons to ${appDir}:"
             $icons | ForEach-Object { Write-Host " - $_" }
           } else {
             Write-Host "No icons found to copy."
           }
-          Write-Host "Contents of $appDir after copy:"
+          Write-Host "Contents of ${appDir} after copy:"
           Get-ChildItem $appDir | Format-Table -AutoSize
 
       - name: Zip onedir (contents only, no top-level "dist")
@@ -137,6 +158,27 @@ jobs:
           # Put the EXE and (copied) icons at the root of the ZIP (matches your .bat outcome)
           Compress-Archive -Path "$appDir\*" -DestinationPath ".\${{ steps.names.outputs.onedir_zip }}" -Force -CompressionLevel Optimal
           Write-Host "Created $((Resolve-Path .\${{ steps.names.outputs.onedir_zip }}).Path)"
+
+      - name: List contents of onedir zip
+        run: |
+          $zipPath = ".\${{ steps.names.outputs.onedir_zip }}"
+          Write-Host "ZIP: $zipPath"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          "{0,12} {1,12}  {2}" -f "Size","CompSize","Name"
+          "{0,12} {1,12}  {2}" -f "----","--------","----"
+          foreach ($e in $z.Entries) {
+            "{0,12:N0} {1,12:N0}  {2}" -f $e.Length, $e.CompressedLength, $e.FullName
+          }
+          $z.Dispose()
+          # Optional: quick presence checks (won't fail the job)
+          $hasExe   = (Expand-String "${{ steps.names.outputs.app }}.exe")
+          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
+          $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          $names = $z.Entries | ForEach-Object FullName
+          $z.Dispose()
+          if ($names -notcontains $hasExe) { Write-Warning "EXE not found in onedir zip." }
+          if (-not ($names | Where-Object { $_ -in $iconLike })) { Write-Warning "No icon file found in onedir zip." }
 
       # ---------- Upload as workflow artifacts (for debugging / history) ----------
       - name: Upload artifact (onefile zip)
