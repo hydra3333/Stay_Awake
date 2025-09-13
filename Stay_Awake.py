@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-__version__ = "1.3.5"
+__version__ = "1.3.6"
 __author__ = "Open Source"
 __description__ = "System tray application to prevent sleep and hibernation"
 
@@ -158,7 +158,7 @@ import argparse
 MAX_DISPLAY_PX = 512  # max long-side pixels for images in windows
 
 APP_BLURB = (
-    "WEDJAT : THE EYE OF HORUS\n"
+    "WEDJAT  :  THE EYE OF HORUS\n"
     "\n"
     "Prevents system sleep & hibernation while active.\n"
     "Display Monitor sleep is allowed.\n"
@@ -340,6 +340,9 @@ class Stay_AwakeTrayApp:
         # Main window “X” should EXIT the app (gracefully)
         self.main_window.protocol("WM_DELETE_WINDOW", self.quit_from_window)
 
+        # Redirect title-bar minimize ("_") to system-tray hide
+        self.main_window.bind("<Unmap>", self._on_window_unmap)
+
         # Layout
         container = ttk.Frame(self.main_window, padding=(16, 16, 16, 16))
         container.pack(fill=tk.BOTH, expand=True)
@@ -383,6 +386,14 @@ class Stay_AwakeTrayApp:
 
     def quit_from_window(self):
         self.quit_application(None, None)
+
+    # Intercept OS minimize (iconify) and route to system-tray hide
+    def _on_window_unmap(self, event):
+        try:
+            if self.main_window and self.main_window.state() == "iconic":
+                self.minimize_to_tray()
+        except Exception:
+            pass
 
     # -------------------- Core / lifecycle --------------------
 
