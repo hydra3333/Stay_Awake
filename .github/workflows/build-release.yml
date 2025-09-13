@@ -24,7 +24,16 @@ jobs:
           echo "GITHUB_REF=$env:GITHUB_REF"
           echo "GITHUB_SHA=$env:GITHUB_SHA"
           git rev-parse HEAD
-          if (Test-Path .\Stay_Awake_icon.png) { Write-Host "Icon found at repo root." } else { Write-Host "Icon NOT found at repo root." }
+          $names = 'Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico'
+          foreach ($n in $names) {
+            $p = Join-Path "${{ github.workspace }}" $n
+            if (Test-Path $p) {
+                $len = (Get-Item $p).Length
+                Write-Host "FOUND: $n ($len bytes)"
+            } else {
+                Write-Host "missing: $n"
+            }
+          }
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
@@ -78,28 +87,22 @@ jobs:
         run: |
           $exePath = ".\dist\${{ steps.names.outputs.app }}.exe"
           if (!(Test-Path $exePath)) { throw "Missing expected exe: $exePath" }
-          # Use wildcard in -Path so -Include actually matches
-          $icons = Get-ChildItem -Path .\* -Include `
-          Stay_Awake_icon.png,Stay_Awake_icon.jpg,Stay_Awake_icon.jpeg,`
-          Stay_Awake_icon.webp,Stay_Awake_icon.bmp,Stay_Awake_icon.gif,Stay_Awake_icon.ico `
-          -File -ErrorAction SilentlyContinue
-          if ($icons) {
-          Write-Host "Found icons:" ($icons | ForEach-Object { $_.Name }) -join ", "
-          $paths = @($exePath) + $icons.FullName
+          $root = "${{ github.workspace }}"
+          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
+          $icons = @()
+          foreach ($n in $names) {
+            $p = Join-Path $root $n
+            if (Test-Path $p) { $icons += (Resolve-Path $p).Path }
+          }
+          if ($icons.Count -gt 0) {
+            Write-Host "Icons found:"; $icons | ForEach-Object { Write-Host " - $_" }
+            $paths = @($exePath) + $icons
           } else {
-          Write-Host "No icons found at repo root."
-          $paths = @($exePath)
+            Write-Host "No icons found at repo root."
+            $paths = @($exePath)
           }
           Compress-Archive -Path $paths -DestinationPath ".\${{ steps.names.outputs.onefile_zip }}" -Force -CompressionLevel Optimal
           Write-Host "Created $((Resolve-Path .\${{ steps.names.outputs.onefile_zip }}).Path)"
-
-      # ---------- ONEDIR ----------
-      - name: Clean (onedir)
-        run: |
-          if (Test-Path .\dist)  { Remove-Item .\dist  -Recurse -Force -ErrorAction SilentlyContinue }
-          if (Test-Path .\build) { Remove-Item .\build -Recurse -Force -ErrorAction SilentlyContinue }
-          if (Test-Path .\Stay_Awake.spec) { Remove-Item .\Stay_Awake.spec -Force -ErrorAction SilentlyContinue }
-          if (Test-Path .\${{ steps.names.outputs.onedir_zip }}) { Remove-Item .\${{ steps.names.outputs.onedir_zip }} -Force -ErrorAction SilentlyContinue }
 
       - name: PyInstaller (onedir, windowed, no console)
         run: |
@@ -109,18 +112,23 @@ jobs:
       - name: Copy icons into onedir folder (next to the EXE)
         run: |
           $appDir = ".\dist\${{ steps.names.outputs.app }}"
-          # Use wildcard in -Path so -Include actually matches
-          $icons = Get-ChildItem -Path .\* -Include `
-          Stay_Awake_icon.png,Stay_Awake_icon.jpg,Stay_Awake_icon.jpeg,`
-          Stay_Awake_icon.webp,Stay_Awake_icon.bmp,Stay_Awake_icon.gif,Stay_Awake_icon.ico `
-          -File -ErrorAction SilentlyContinue
-          if ($icons) {
-          Copy-Item -Path $icons.FullName -Destination $appDir -Force
-          Write-Host "Copied icons to $appDir:" ($icons | ForEach-Object { $_.Name }) -join ", "
-          } else {
-          Write-Host "No icons found to copy."
+          if (!(Test-Path $appDir)) { throw "Missing app directory: $appDir" }
+          $root = "${{ github.workspace }}"
+          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
+          $icons = @()
+          foreach ($n in $names) {
+            $p = Join-Path $root $n
+            if (Test-Path $p) { $icons += (Resolve-Path $p).Path }
           }
-          Get-ChildItem $appDir
+          if ($icons.Count -gt 0) {
+            Copy-Item -Path $icons -Destination $appDir -Force
+            Write-Host "Copied icons to $appDir:"
+            $icons | ForEach-Object { Write-Host " - $_" }
+          } else {
+            Write-Host "No icons found to copy."
+          }
+          Write-Host "Contents of $appDir after copy:"
+          Get-ChildItem $appDir | Format-Table -AutoSize
 
       - name: Zip onedir (contents only, no top-level "dist")
         run: |
