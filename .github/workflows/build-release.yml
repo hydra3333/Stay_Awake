@@ -116,8 +116,8 @@ jobs:
             "{0,12:N0} {1,12:N0}  {2}" -f $e.Length, $e.CompressedLength, $e.FullName
           }
           $z.Dispose()
-          # Optional: quick presence checks (won't fail the job)
-          $hasExe   = (Expand-String "${{ steps.names.outputs.app }}.exe")
+          # Presence checks (non-fatal warnings, or switch to 'throw' if you want hard failures)
+          $hasExe   = "${{ steps.names.outputs.app }}.exe"   # <- just a string
           $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
           $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
           $names = $z.Entries | ForEach-Object FullName
@@ -171,8 +171,7 @@ jobs:
             "{0,12:N0} {1,12:N0}  {2}" -f $e.Length, $e.CompressedLength, $e.FullName
           }
           $z.Dispose()
-          # Optional: quick presence checks (won't fail the job)
-          $hasExe   = (Expand-String "${{ steps.names.outputs.app }}.exe")
+          $hasExe   = "${{ steps.names.outputs.app }}.exe"   # <- just a string
           $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
           $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
           $names = $z.Entries | ForEach-Object FullName
