@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-__version__ = "1.3.4"
+__version__ = "1.3.5"
 __author__ = "Open Source"
-__description__ = "System tray application to prevent sleep"
+__description__ = "System tray application to prevent sleep and hibernation"
 
 # Stay_Awake System Tray Application
 # Keeps system awake, runs in system tray with minimal GUI
@@ -158,6 +158,8 @@ import argparse
 MAX_DISPLAY_PX = 512  # max long-side pixels for images in windows
 
 APP_BLURB = (
+    "WEDJAT : THE EYE OF HORUS\n"
+    "\n"
     "Prevents system sleep & hibernation while active.\n"
     "Display Monitor sleep is allowed.\n"
     "Closing this app re-allows sleep & hibernation."
@@ -179,7 +181,6 @@ IMAGE_CANDIDATES = [
     "Stay_Awake_icon.ico",
 ]
 
-
 class Stay_AwakeTrayApp:
     def __init__(self, icon_override_path: str | None = None):
         self.running = False
@@ -190,14 +191,11 @@ class Stay_AwakeTrayApp:
 
         # Tk image caches (prevent GC) and PIL caches
         self._cached_photo_main = None
-        self._cached_photo_about = None
         self._pil_base_image = None   # cache for original PIL image
         self._tray_icon_image = None  # cache for small tray PIL image
-        self._about_window = None     # track About window instance
 
         # Optional CLI override path
         self.icon_override_path = icon_override_path
-
         atexit.register(self.cleanup)
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -350,7 +348,7 @@ class Stay_AwakeTrayApp:
         self._cached_photo_main = self.get_display_image_tk(MAX_DISPLAY_PX)
         ttk.Label(container, image=self._cached_photo_main, anchor="center").pack(side=tk.TOP, pady=(0, 8))
 
-        # Blurb text (same as About)
+        # Blurb text 
         ttk.Label(container, text=APP_BLURB, justify="center").pack(side=tk.TOP, pady=(0, 12))
 
         ttk.Separator(container, orient="horizontal").pack(fill="x", pady=(0, 8))
@@ -358,88 +356,12 @@ class Stay_AwakeTrayApp:
         # Buttons at bottom (vanilla style)
         btns = ttk.Frame(container)
         btns.pack(side=tk.BOTTOM, fill=tk.X, pady=(8, 0))
-
-        ttk.Button(btns, text="Minimize to System Tray", command=self.minimize_to_tray).pack(
-            side=tk.LEFT, padx=(0, 8)
-        )
-        ttk.Button(btns, text="About", command=self.show_about).pack(side=tk.LEFT)
+        ttk.Button(btns, text="Minimize to System Tray", command=self.minimize_to_tray).pack(side=tk.LEFT, padx=(0, 8))
         ttk.Button(btns, text="Quit", command=self.quit_from_window).pack(side=tk.RIGHT, padx=(8, 0))
 
         # Status hint
-        ttk.Label(container, text="Right-click the tray icon for options.", foreground="gray").pack(
-            side=tk.BOTTOM, pady=(8, 0)
-        )
-
+        ttk.Label(container, text="Right-click the tray icon for options.", foreground="gray").pack(side=tk.BOTTOM, pady=(8, 0))
         self._center_window(self.main_window)
-
-    def _show_about_impl(self):
-        parent = self.main_window if self.main_window else None
-
-        # If already open, just lift
-        if self._about_window is not None and self._about_window.winfo_exists():
-            try:
-                self._about_window.lift(); self._about_window.focus_force()
-            except Exception:
-                pass
-            return
-
-        about = tk.Toplevel(parent) if parent else tk.Tk()
-        self._about_window = about
-        about.title("About – Stay_Awake")
-        about.resizable(False, False)
-        if parent:
-            about.transient(parent)
-            about.grab_set()  # modal over parent
-
-        def _close():
-            try:
-                about.grab_release()
-            except Exception:
-                pass
-            try:
-                about.destroy()
-            finally:
-                self._about_window = None
-
-        about.protocol("WM_DELETE_WINDOW", _close)
-        about.bind("<Escape>", lambda e: _close())
-        about.bind("<Return>", lambda e: _close())
-
-        # If user clicks minimize on the title bar, treat it like close
-        def _on_unmap(event):
-            if about.state() == "iconic":
-                _close()
-        about.bind("<Unmap>", _on_unmap)
-
-        frame = ttk.Frame(about, padding=(16, 16, 16, 12))
-        frame.pack(fill=tk.BOTH, expand=True)
-
-        # Smaller image on About
-        self._cached_photo_about = self.get_display_image_tk(min(320, MAX_DISPLAY_PX))
-        ttk.Label(frame, image=self._cached_photo_about).pack(pady=(0, 8))
-
-        ttk.Label(
-            frame,
-            text=(f"Stay_Awake v{__version__}\n" + APP_BLURB),
-            justify="center",
-        ).pack(pady=(0, 8))
-
-        ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 8))
-
-        # Buttons
-        btns = ttk.Frame(frame)
-        btns.pack(side=tk.BOTTOM, fill=tk.X)
-
-        # “Minimize” should behave like the window X (i.e., close the About window)
-        ttk.Button(btns, text="Minimize", command=_close).pack(side=tk.LEFT)
-        ttk.Button(btns, text="OK", command=_close).pack(side=tk.RIGHT)
-
-        self._center_window(about)
-
-    def show_about(self, icon=None, item=None):
-        if not self._call_on_main(self._show_about_impl):
-            return
-        self._show_about_impl()
 
     # -------------------- Window controls --------------------
 
@@ -525,7 +447,7 @@ class Stay_AwakeTrayApp:
         image = self.create_image()
         menu = pystray.Menu(
             item("Show Window", self.show_main_window, default=True),
-            item("About", self.show_about),
+                                           
             pystray.Menu.SEPARATOR,
             item("Quit", self.quit_application),
         )
@@ -540,18 +462,11 @@ class Stay_AwakeTrayApp:
         tray_thread.start()
         self.main_window.mainloop()
 
-
 def main():
-    # ---------- CLI parsing ----------
+                                       
     parser = argparse.ArgumentParser(description="Stay_Awake system tray tool")
-    parser.add_argument(
-        "--icon",
-        dest="icon_path",
-        metavar="PATH",
-        help="Path to an image file (PNG/JPG/JPEG/WEBP/BMP/GIF/ICO) used for the app icon & window image.",
-    )
+    parser.add_argument("--icon", dest="icon_path", metavar="PATH", help="Path to an image file (PNG/JPG/JPEG/WEBP/BMP/GIF/ICO) used for the app icon & window image.")
     args = parser.parse_args()
-
     try:
         app = Stay_AwakeTrayApp(icon_override_path=args.icon_path)
         app.run()
@@ -562,7 +477,6 @@ def main():
     finally:
         print("Final cleanup...")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
