@@ -1,0 +1,137 @@
+name: Build Windows (PyInstaller) and attach to Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # needed to upload assets to the release
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Print Python info
+        run: |
+          python -V
+          pip -V
+
+      - name: Install dependencies (your preferred flags)
+        run: |
+          pip install wakepy --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
+          pip install pystray --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
+          pip install Pillow --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
+          pip install pyinstaller --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
+
+      - name: Derive version from Stay_Awake.py
+        id: meta
+        run: |
+          $version = (Select-String -Path .\Stay_Awake.py -Pattern '__version__\s*=\s*"(.*?)"' -ErrorAction Stop).Matches[0].Groups[1].Value
+          echo "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Version: $version"
+
+      - name: Define names
+        id: names
+        run: |
+          $App = 'Stay_Awake'
+          $Ver = '${{ steps.meta.outputs.version }}'
+          $OneFileZip = "${App}_${Ver}_windows_onefile.zip"
+          $OneDirZip  = "${App}_${Ver}_windows_onedir.zip"
+          echo "app=$App" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          echo "onefile_zip=$OneFileZip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          echo "onedir_zip=$OneDirZip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      # ---------- ONEFILE ----------
+      - name: Clean (onefile)
+        run: |
+          if (Test-Path .\dist)  { Remove-Item .\dist  -Recurse -Force -ErrorAction SilentlyContinue }
+          if (Test-Path .\build) { Remove-Item .\build -Recurse -Force -ErrorAction SilentlyContinue }
+          if (Test-Path .\Stay_Awake.spec) { Remove-Item .\Stay_Awake.spec -Force -ErrorAction SilentlyContinue }
+          if (Test-Path .\${{ steps.names.outputs.onefile_zip }}) { Remove-Item .\${{ steps.names.outputs.onefile_zip }} -Force -ErrorAction SilentlyContinue }
+
+      - name: PyInstaller (onefile, windowed, no console)
+        run: |
+          pyinstaller --clean --onefile --windowed --noconsole --name "${{ steps.names.outputs.app }}" Stay_Awake.py
+          Get-ChildItem .\dist\
+
+      - name: Zip onefile exe + optional icons
+        run: |
+          $exePath = ".\dist\${{ steps.names.outputs.app }}.exe"
+          if (!(Test-Path $exePath)) { throw "Missing expected exe: $exePath" }
+
+          # Gather optional icon files from repo root
+          $icons = Get-ChildItem -Path . -Include Stay_Awake_icon.png,Stay_Awake_icon.jpg,Stay_Awake_icon.jpeg,Stay_Awake_icon.webp,Stay_Awake_icon.bmp,Stay_Awake_icon.gif,Stay_Awake_icon.ico -File -ErrorAction SilentlyContinue
+
+          $paths = @($exePath)
+          if ($icons) { $paths += $icons.FullName }
+
+          # Zip to "<app>_<ver>_windows_onefile.zip" with exe (and icons) at the ZIP root
+          Compress-Archive -Path $paths -DestinationPath ".\${{ steps.names.outputs.onefile_zip }}" -Force -CompressionLevel Optimal
+          Write-Host "Created $((Resolve-Path .\${{ steps.names.outputs.onefile_zip }}).Path)"
+
+      # ---------- ONEDIR ----------
+      - name: Clean (onedir)
+        run: |
+          if (Test-Path .\dist)  { Remove-Item .\dist  -Recurse -Force -ErrorAction SilentlyContinue }
+          if (Test-Path .\build) { Remove-Item .\build -Recurse -Force -ErrorAction SilentlyContinue }
+          if (Test-Path .\Stay_Awake.spec) { Remove-Item .\Stay_Awake.spec -Force -ErrorAction SilentlyContinue }
+          if (Test-Path .\${{ steps.names.outputs.onedir_zip }}) { Remove-Item .\${{ steps.names.outputs.onedir_zip }} -Force -ErrorAction SilentlyContinue }
+
+      - name: PyInstaller (onedir, windowed, no console)
+        run: |
+          pyinstaller --clean --onedir --windowed --noconsole --name "${{ steps.names.outputs.app }}" Stay_Awake.py
+          Get-ChildItem .\dist\${{ steps.names.outputs.app }}\
+
+      - name: Copy icons into onedir folder (next to the EXE)
+        run: |
+          $appDir = ".\dist\${{ steps.names.outputs.app }}"
+          $icons = Get-ChildItem -Path . -Include Stay_Awake_icon.png,Stay_Awake_icon.jpg,Stay_Awake_icon.jpeg,Stay_Awake_icon.webp,Stay_Awake_icon.bmp,Stay_Awake_icon.gif,Stay_Awake_icon.ico -File -ErrorAction SilentlyContinue
+          if ($icons) {
+            Copy-Item -Path $icons.FullName -Destination $appDir -Force
+          }
+          Get-ChildItem $appDir
+
+      - name: Zip onedir (contents only, no top-level "dist")
+        run: |
+          $appDir = ".\dist\${{ steps.names.outputs.app }}"
+          if (!(Test-Path $appDir)) { throw "Missing app directory: $appDir" }
+          # Put the EXE and (copied) icons at the root of the ZIP (matches your .bat outcome)
+          Compress-Archive -Path "$appDir\*" -DestinationPath ".\${{ steps.names.outputs.onedir_zip }}" -Force -CompressionLevel Optimal
+          Write-Host "Created $((Resolve-Path .\${{ steps.names.outputs.onedir_zip }}).Path)"
+
+      # ---------- Upload as workflow artifacts (for debugging / history) ----------
+      - name: Upload artifact (onefile zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.names.outputs.onefile_zip }}
+          path: ${{ steps.names.outputs.onefile_zip }}
+
+      - name: Upload artifact (onedir zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.names.outputs.onedir_zip }}
+          path: ${{ steps.names.outputs.onedir_zip }}
+
+      # ---------- Attach to the GitHub Release ----------
+      - name: Attach assets to the Release
+        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.names.outputs.onefile_zip }}
+            ${{ steps.names.outputs.onedir_zip }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
