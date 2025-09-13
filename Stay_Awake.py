@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 
-__version__ = "1.3.3"
+__version__ = "1.3.4"
 __author__ = "Open Source"
 __description__ = "System tray application to prevent sleep"
 
 # Stay_Awake System Tray Application
 # Keeps system awake, runs in system tray with minimal GUI
-# 
+#
 # .pyw runs with pythonw.exe (no console window).
 # pythonw.exe doesn't create a console window
-# Drawback: You lose all the print() messages, but the app works silently.                                                                                  
+# Drawback: You lose all the print() messages, but the app works silently.
 #
 # ------------------------------------------------------------------------------
 # CLI summary:
@@ -157,12 +157,17 @@ import argparse
 # --------------------------------------------------------------------
 MAX_DISPLAY_PX = 512  # max long-side pixels for images in windows
 
+APP_BLURB = (
+    "Prevents system sleep & hibernation.\n"
+    "Display sleep is allowed."
+)
+
 # --------------------------------------------------------------------
 # PASTE YOUR BASE64 HERE (leave empty to use file/CLI fallback)
 # --------------------------------------------------------------------
 EYE_IMAGE_BASE64 = ("")  # e.g. ("iVBORw0KGgoAAA..." "more...")
 
-# Candidate file names (same folder as this script) in this order
+# Candidate file names (same folder as this script/EXE) in this order
 IMAGE_CANDIDATES = [
     "Stay_Awake_icon.png",
     "Stay_Awake_icon.jpg",
@@ -182,29 +187,31 @@ class Stay_AwakeTrayApp:
         self.keep_awake_context = None
         self.window_visible = True
 
-        self._cached_photo_main = None  # keep reference to prevent GC
+        # Tk image caches (prevent GC) and PIL caches
+        self._cached_photo_main = None
         self._cached_photo_about = None
+        self._pil_base_image = None   # cache for original PIL image
+        self._tray_icon_image = None  # cache for small tray PIL image
+        self._about_window = None     # track About window instance
 
-        # NEW: optional CLI override path
+        # Optional CLI override path
         self.icon_override_path = icon_override_path
 
         atexit.register(self.cleanup)
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
 
-    # -------------------- Image helpers --------------------
+    # -------------------- Paths / images --------------------
 
     def _script_dir(self) -> Path:
         # When frozen by PyInstaller:
         #   - onefile/onedir: sys.executable is the bundled EXE; use its folder
         try:
-            import sys as _sys
-            if getattr(_sys, "frozen", False):
-                return Path(_sys.executable).resolve().parent
+            if getattr(sys, "frozen", False):
+                return Path(sys.executable).resolve().parent
             return Path(__file__).resolve().parent
         except Exception:
             return Path(os.getcwd())
-
 
     def _try_decode_base64(self):
         """Return PIL.Image from base64 or None if not decodable/empty."""
@@ -267,12 +274,14 @@ class Stay_AwakeTrayApp:
 
     def _load_eye_image(self) -> Image.Image:
         """
-        Load image using priority:
+        Load/cached image using priority:
         1) CLI override (--icon path)
         2) internal base64
         3) files in IMAGE_CANDIDATES
         4) drawn fallback
         """
+        if self._pil_base_image is not None:
+            return self._pil_base_image
         img = self._try_load_override_file()
         if img is None:
             img = self._try_decode_base64()
@@ -280,7 +289,8 @@ class Stay_AwakeTrayApp:
             img = self._try_load_from_files()
         if img is None:
             img = self._fallback_draw_eye()
-        return img.convert("RGBA")
+        self._pil_base_image = img.convert("RGBA")
+        return self._pil_base_image
 
     @staticmethod
     def _resize_keep_aspect(img: Image.Image, max_px: int) -> Image.Image:
@@ -294,16 +304,18 @@ class Stay_AwakeTrayApp:
         pil = self._resize_keep_aspect(pil, max_px)
         return ImageTk.PhotoImage(pil)
 
-    # -------------------- UI creation --------------------
+    # -------------------- UI helpers --------------------
 
     def create_image(self):
         """Create tray icon image (down-sized from loaded Eye image)."""
-        pil = self._load_eye_image()
-        icon_pil = self._resize_keep_aspect(pil, 64)
-        # Add small transparent border so rounded icons don't clip
-        bordered = Image.new("RGBA", (icon_pil.width + 2, icon_pil.height + 2), (0, 0, 0, 0))
-        bordered.paste(icon_pil, (1, 1))
-        return bordered
+        if self._tray_icon_image is None:
+            pil = self._load_eye_image()
+            icon_pil = self._resize_keep_aspect(pil, 64)
+            # Add small transparent border so rounded icons don't clip
+            bordered = Image.new("RGBA", (icon_pil.width + 2, icon_pil.height + 2), (0, 0, 0, 0))
+            bordered.paste(icon_pil, (1, 1))
+            self._tray_icon_image = bordered
+        return self._tray_icon_image
 
     def _center_window(self, win):
         win.update_idletasks()
@@ -311,6 +323,14 @@ class Stay_AwakeTrayApp:
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         x, y = (sw - w) // 2, (sh - h) // 2
         win.geometry(f"+{x}+{y}")
+
+    def _call_on_main(self, fn, *args, **kwargs):
+        if self.main_window and threading.current_thread() is not threading.main_thread():
+            self.main_window.after(0, lambda: fn(*args, **kwargs))
+            return False
+        return True
+
+    # -------------------- Windows --------------------
 
     def create_main_window(self):
         """Main control window (native look)."""
@@ -327,7 +347,10 @@ class Stay_AwakeTrayApp:
 
         # Image centered, scaled to <= 512 px
         self._cached_photo_main = self.get_display_image_tk(MAX_DISPLAY_PX)
-        ttk.Label(container, image=self._cached_photo_main, anchor="center").pack(side=tk.TOP, pady=(0, 12))
+        ttk.Label(container, image=self._cached_photo_main, anchor="center").pack(side=tk.TOP, pady=(0, 8))
+
+        # Blurb text (same as About)
+        ttk.Label(container, text=APP_BLURB, justify="center").pack(side=tk.TOP, pady=(0, 12))
 
         ttk.Separator(container, orient="horizontal").pack(fill="x", pady=(0, 8))
 
@@ -348,14 +371,19 @@ class Stay_AwakeTrayApp:
 
         self._center_window(self.main_window)
 
-    # -------------------- About window --------------------
-
-    def show_about(self, icon=None, item=None):
-        """A real modal About dialog. X/OK close it. Minimizing acts like close."""
+    def _show_about_impl(self):
         parent = self.main_window if self.main_window else None
 
-        # Create About Toplevel
+        # If already open, just lift
+        if self._about_window is not None and self._about_window.winfo_exists():
+            try:
+                self._about_window.lift(); self._about_window.focus_force()
+            except Exception:
+                pass
+            return
+
         about = tk.Toplevel(parent) if parent else tk.Tk()
+        self._about_window = about
         about.title("About – Stay_Awake")
         about.resizable(False, False)
         if parent:
@@ -367,7 +395,10 @@ class Stay_AwakeTrayApp:
                 about.grab_release()
             except Exception:
                 pass
-            about.destroy()
+            try:
+                about.destroy()
+            finally:
+                self._about_window = None
 
         about.protocol("WM_DELETE_WINDOW", _close)
         about.bind("<Escape>", lambda e: _close())
@@ -388,9 +419,7 @@ class Stay_AwakeTrayApp:
 
         ttk.Label(
             frame,
-            text=(f"Stay_Awake v{__version__}\n"
-                  "Prevents system sleep & hibernation.\n"
-                  "Display sleep is allowed."),
+            text=(f"Stay_Awake v{__version__}\n" + APP_BLURB),
             justify="center",
         ).pack(pady=(0, 8))
 
@@ -406,6 +435,11 @@ class Stay_AwakeTrayApp:
 
         self._center_window(about)
 
+    def show_about(self, icon=None, item=None):
+        if not self._call_on_main(self._show_about_impl):
+            return
+        self._show_about_impl()
+
     # -------------------- Window controls --------------------
 
     def minimize_to_tray(self):
@@ -414,11 +448,15 @@ class Stay_AwakeTrayApp:
             self.window_visible = False
 
     def show_main_window(self, icon=None, item=None):
-        if self.main_window:
-            self.main_window.deiconify()
-            self.main_window.lift()
-            self.main_window.focus_force()
-            self.window_visible = True
+        def _impl():
+            if self.main_window:
+                self.main_window.deiconify()
+                self.main_window.lift()
+                self.main_window.focus_force()
+                self.window_visible = True
+        if not self._call_on_main(_impl):
+            return
+        _impl()
 
     def quit_from_window(self):
         self.quit_application(None, None)
@@ -459,22 +497,26 @@ class Stay_AwakeTrayApp:
         sys.exit(0)
 
     def quit_application(self, icon, item):
-        print("User requested quit")
-        self.cleanup()
-        if self.main_window:
-            try:
-                self.main_window.quit()
-                self.main_window.destroy()
-            except Exception:
-                pass
-        if self.icon:
-            try:
-                self.icon.visible = False
-                self.icon.stop()
-            except Exception:
-                pass
-        time.sleep(0.1)
-        sys.exit(0)
+        def _impl():
+            print("User requested quit")
+            self.cleanup()
+            if self.main_window:
+                try:
+                    self.main_window.quit()
+                    self.main_window.destroy()
+                except Exception:
+                    pass
+            if self.icon:
+                try:
+                    self.icon.visible = False
+                    self.icon.stop()
+                except Exception:
+                    pass
+            time.sleep(0.1)
+            sys.exit(0)
+        if not self._call_on_main(_impl):
+            return
+        _impl()
 
     # -------------------- Tray --------------------
 
@@ -499,7 +541,7 @@ class Stay_AwakeTrayApp:
 
 
 def main():
-    # ---------- CLI parsing (NEW) ----------
+    # ---------- CLI parsing ----------
     parser = argparse.ArgumentParser(description="Stay_Awake system tray tool")
     parser.add_argument(
         "--icon",

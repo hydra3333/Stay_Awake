@@ -2,7 +2,7 @@ Here’s a fresh, drop-in **README.md** that matches the current app (v1.3.3), i
 
 ---
 
-# Stay\_Awake (v1.3.3)
+# Stay\_Awake
 
 A lightweight system-tray utility that keeps your computer **awake** (no automatic sleep/hibernation) while still allowing the **display to sleep** if you want power savings. Built with Python + tkinter and packaged with PyInstaller for simple distribution.
 
@@ -161,22 +161,4 @@ powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -Wind
 --icon "PATH"   Path to an image file used for the app window and tray icon.
                 Absolute paths are safest (shortcuts may set a custom “Start in”).
 ```
-
----
-
-## Changelog
-
-* **v1.3.3 (Latest)**
-
-  * Added frozen-aware path logic (EXE folder used in PyInstaller onefile/onedir)
-  * README and packaging notes refreshed
-* **v1.3.2**
-
-  * Added `--icon "PATH"` override; image priority: CLI → base64 → file list → drawn fallback
-  * Native `ttk` look; main window **X** exits; About **Minimize** acts like close
-  * Centered image; auto-scale to `MAX_DISPLAY_PX` (512 default)
-* **v1.3.1**
-
-  * File fallback list; About dialog rewritten as modal with proper OK/X behavior
-* Earlier versions: system tray foundation, wake/cleanup lifecycle, basic GUI.&#x20;
 
