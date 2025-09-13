@@ -19,6 +19,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Show ref, commit, and icon presence
+        run: |
+          echo "GITHUB_REF=$env:GITHUB_REF"
+          echo "GITHUB_SHA=$env:GITHUB_SHA"
+          git rev-parse HEAD
+          if (Test-Path .\Stay_Awake_icon.png) { Write-Host "Icon found at repo root." } else { Write-Host "Icon NOT found at repo root." }
+
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
@@ -71,14 +78,18 @@ jobs:
         run: |
           $exePath = ".\dist\${{ steps.names.outputs.app }}.exe"
           if (!(Test-Path $exePath)) { throw "Missing expected exe: $exePath" }
-
-          # Gather optional icon files from repo root
-          $icons = Get-ChildItem -Path . -Include Stay_Awake_icon.png,Stay_Awake_icon.jpg,Stay_Awake_icon.jpeg,Stay_Awake_icon.webp,Stay_Awake_icon.bmp,Stay_Awake_icon.gif,Stay_Awake_icon.ico -File -ErrorAction SilentlyContinue
-
+          # Use wildcard in -Path so -Include actually matches
+          $icons = Get-ChildItem -Path .\* -Include `
+          Stay_Awake_icon.png,Stay_Awake_icon.jpg,Stay_Awake_icon.jpeg,`
+          Stay_Awake_icon.webp,Stay_Awake_icon.bmp,Stay_Awake_icon.gif,Stay_Awake_icon.ico `
+          -File -ErrorAction SilentlyContinue
+          if ($icons) {
+          Write-Host "Found icons:" ($icons | ForEach-Object { $_.Name }) -join ", "
+          $paths = @($exePath) + $icons.FullName
+          } else {
+          Write-Host "No icons found at repo root."
           $paths = @($exePath)
-          if ($icons) { $paths += $icons.FullName }
-
-          # Zip to "<app>_<ver>_windows_onefile.zip" with exe (and icons) at the ZIP root
+          }
           Compress-Archive -Path $paths -DestinationPath ".\${{ steps.names.outputs.onefile_zip }}" -Force -CompressionLevel Optimal
           Write-Host "Created $((Resolve-Path .\${{ steps.names.outputs.onefile_zip }}).Path)"
 
@@ -98,9 +109,16 @@ jobs:
       - name: Copy icons into onedir folder (next to the EXE)
         run: |
           $appDir = ".\dist\${{ steps.names.outputs.app }}"
-          $icons = Get-ChildItem -Path . -Include Stay_Awake_icon.png,Stay_Awake_icon.jpg,Stay_Awake_icon.jpeg,Stay_Awake_icon.webp,Stay_Awake_icon.bmp,Stay_Awake_icon.gif,Stay_Awake_icon.ico -File -ErrorAction SilentlyContinue
+          # Use wildcard in -Path so -Include actually matches
+          $icons = Get-ChildItem -Path .\* -Include `
+          Stay_Awake_icon.png,Stay_Awake_icon.jpg,Stay_Awake_icon.jpeg,`
+          Stay_Awake_icon.webp,Stay_Awake_icon.bmp,Stay_Awake_icon.gif,Stay_Awake_icon.ico `
+          -File -ErrorAction SilentlyContinue
           if ($icons) {
-            Copy-Item -Path $icons.FullName -Destination $appDir -Force
+          Copy-Item -Path $icons.FullName -Destination $appDir -Force
+          Write-Host "Copied icons to $appDir:" ($icons | ForEach-Object { $_.Name }) -join ", "
+          } else {
+          Write-Host "No icons found to copy."
           }
           Get-ChildItem $appDir
 
