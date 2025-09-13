@@ -158,8 +158,9 @@ import argparse
 MAX_DISPLAY_PX = 512  # max long-side pixels for images in windows
 
 APP_BLURB = (
-    "Prevents system sleep & hibernation.\n"
-    "Display sleep is allowed."
+    "Prevents system sleep & hibernation while active.\n"
+    "Display Monitor sleep is allowed.\n"
+    "Closing this app re-allows sleep & hibernation."
 )
 
 # --------------------------------------------------------------------
