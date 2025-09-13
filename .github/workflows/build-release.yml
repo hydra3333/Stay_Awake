@@ -52,12 +52,22 @@ jobs:
           pip install Pillow --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
           pip install pyinstaller --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
 
-      - name: Derive version from Stay_Awake.py
+      - name: Derive version from Release tag (or fallback)
         id: meta
         run: |
-          $version = (Select-String -Path .\Stay_Awake.py -Pattern '__version__\s*=\s*"(.*?)"' -ErrorAction Stop).Matches[0].Groups[1].Value
-          echo "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          Write-Host "Version: $version"
+          # Prefer the event's ref name (release tag, or branch for manual runs)
+          $raw = $env:GITHUB_REF_NAME
+          if (-not $raw) {
+            try { $raw = (git describe --tags --always) } catch { }
+            if (-not $raw) { $raw = (git rev-parse --short HEAD) }
+          }
+          # Sanitize for filenames: replace invalid chars, collapse whitespace, trim trailing dots
+          $ver = $raw -replace '[<>:""/\\|?*\x00-\x1F]', '_' -replace '\s+', '_' 
+          $ver = $ver.TrimEnd('.')
+          if (-not $ver) { $ver = "build_$($env:GITHUB_RUN_NUMBER)" }
+          Write-Host "Ref name: $raw"
+          Write-Host "Using version: $ver"
+          echo "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Define names
         id: names
@@ -159,25 +169,35 @@ jobs:
           Compress-Archive -Path "$appDir\*" -DestinationPath ".\${{ steps.names.outputs.onedir_zip }}" -Force -CompressionLevel Optimal
           Write-Host "Created $((Resolve-Path .\${{ steps.names.outputs.onedir_zip }}).Path)"
 
-      - name: List contents of onedir zip
+      - name: List contents of onedir zip (top-level only)
         run: |
           $zipPath = ".\${{ steps.names.outputs.onedir_zip }}"
           Write-Host "ZIP: $zipPath"
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          # Top-level files only (entries with no "/" in their FullName)
+          $rootFiles = $z.Entries | Where-Object { $_.FullName -notmatch '/' }
           "{0,12} {1,12}  {2}" -f "Size","CompSize","Name"
           "{0,12} {1,12}  {2}" -f "----","--------","----"
-          foreach ($e in $z.Entries) {
-            "{0,12:N0} {1,12:N0}  {2}" -f $e.Length, $e.CompressedLength, $e.FullName
+          $rootFiles | ForEach-Object {
+            "{0,12:N0} {1,12:N0}  {2}" -f $_.Length, $_.CompressedLength, $_.FullName
           }
-          $z.Dispose()
-          $hasExe   = "${{ steps.names.outputs.app }}.exe"   # <- just a string
+          # Optional: list top-level directory names (no recursion)
+          $rootDirs = $z.Entries |
+            Where-Object { $_.FullName -match '^[^/]+/$' } |
+            Select-Object -ExpandProperty FullName -Unique
+          if ($rootDirs) {
+            Write-Host ""
+            Write-Host "Top-level directories:"
+            $rootDirs | ForEach-Object { Write-Host " - $_" }
+          }
+          # Presence checks (root-level only is fine because exe & icons are at root)
+          $hasExe   = "${{ steps.names.outputs.app }}.exe"
           $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
-          $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
-          $names = $z.Entries | ForEach-Object FullName
+          $names = $rootFiles | ForEach-Object FullName
           $z.Dispose()
-          if ($names -notcontains $hasExe) { Write-Warning "EXE not found in onedir zip." }
-          if (-not ($names | Where-Object { $_ -in $iconLike })) { Write-Warning "No icon file found in onedir zip." }
+          if ($names -notcontains $hasExe) { Write-Warning "EXE not found at zip root." }
+          if (-not ($names | Where-Object { $_ -in $iconLike })) { Write-Warning "No icon file found at zip root." }
 
       # ---------- Upload as workflow artifacts (for debugging / history) ----------
       - name: Upload artifact (onefile zip)
