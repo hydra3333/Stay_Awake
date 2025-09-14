@@ -7,8 +7,6 @@ REM Optional: skip pip installs (uncomment the next line to skip that section)
 REM goto :after_pip_installs
 REM ---------------------------------------------------------------------------
 
-goto :after_pip_installs
-
 REM Install python dependencies for Stay_Awake
 pip install wakepy --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
 pip install pystray --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
@@ -39,7 +37,8 @@ REM echo.
 REM echo python ".\tmp.py"
 python ".\tmp.py"
 echo.
-py -0p            :: list all installed Pythons
+echo list all installed Pythons
+py -0p            
 echo.
 
 REM ---------- Create ICO from Image (if found) ----------
@@ -142,11 +141,6 @@ powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive  -Com
 set "ERR=%ERRORLEVEL%"
 echo ==== onefile Compress-Archive exit code: %ERR%
 
-echo.
-echo Content of root folder in "!target_zip_file!" :
-call :zip_top_folder_lister "!target_zip_file!"
-echo.
-
 REM ---------------------------------------------------------------------------
 REM Build Stay_Awake (onedir, no console window)
 REM ---------------------------------------------------------------------------
@@ -186,14 +180,21 @@ powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -Comm
 set "ERR=%ERRORLEVEL%"
 echo ==== onedir Compress-Archive exit code: %ERR%
 
+rmdir /s /q .\dist  >NUL 2>&1
+rmdir /s /q .\build >NUL 2>&1
+del /f      .\Stay_Awake.spec >NUL 2>&1
+
+set "target_zip_file=.\Stay_Awake_onefile.zip"
 echo.
 echo Content of root folder in "!target_zip_file!" :
 call :zip_top_folder_lister "!target_zip_file!"
 echo.
 
-rmdir /s /q .\dist  >NUL 2>&1
-rmdir /s /q .\build >NUL 2>&1
-del /f      .\Stay_Awake.spec >NUL 2>&1
+set "target_zip_file=.\Stay_Awake_onedir.zip"
+echo.
+echo Content of root folder in "!target_zip_file!" :
+call :zip_top_folder_lister "!target_zip_file!"
+echo.
 
 echo Press any key to continue . . .
 pause >NUL
@@ -284,24 +285,40 @@ REM p1 = name of the zip file
 set "zipfile=%~dpnx1"
 set "listzip=.\tmp_listzip.ps1"
 del /f "%listzip%" >NUL 2>&1
+>>"%listzip%" echo $zipPath = "!zipfile!"
+>>"%listzip%" echo Write-Host "ZIP: $zipPath"
 >>"%listzip%" echo Add-Type -AssemblyName System.IO.Compression.FileSystem
->>"%listzip%" echo $zipPath = "%zipfile%"
 >>"%listzip%" echo $z = [System.IO.Compression.ZipFile]::OpenRead^($zipPath^)
->>"%listzip%" echo $entries = $z.Entries
->>"%listzip%" echo # Files at ZIP root: entries whose FullName has no slash
->>"%listzip%" echo $rootFiles = $entries ^| Where-Object { $_.FullName -notmatch '/' }
->>"%listzip%" echo # Top-level dir names inferred from first segment
->>"%listzip%" echo $rootDirs = $entries ^| Where-Object { $_.FullName -match '/' } ^| ForEach-Object { ^($_.FullName -replace '/$',''^) -split '/' ^| Select-Object -First 1 } ^| Sort-Object -Unique
->>"%listzip%" echo ""
->>"%listzip%" echo "ZIP: $zipPath"
+>>"%listzip%" echo # Normalize path separators to forward slashes for consistent logic
+>>"%listzip%" echo $entries = $z.Entries ^| ForEach-Object {
+>>"%listzip%" echo   [pscustomobject]@{
+>>"%listzip%" echo     Name = $_.FullName
+>>"%listzip%" echo     Norm = ^($_.FullName -replace '\\','/'^)
+>>"%listzip%" echo     Len  = $_.Length
+>>"%listzip%" echo     Comp = $_.CompressedLength
+>>"%listzip%" echo   }
+>>"%listzip%" echo }
+>>"%listzip%" echo # Files at ZIP root: no slash at all
+>>"%listzip%" echo $rootFiles = $entries ^| Where-Object { $_.Norm -notmatch '/' }
 >>"%listzip%" echo "{0,12} {1,12}  {2}" -f "Size","CompSize","Name"
 >>"%listzip%" echo "{0,12} {1,12}  {2}" -f "----","--------","----"
->>"%listzip%" echo $rootFiles ^| ForEach-Object { "{0,12:N0} {1,12:N0}  {2}" -f $_.Length, $_.CompressedLength, $_.FullName }
->>"%listzip%" echo if ^($rootDirs.Count^) { ""
->>"%listzip%" echo   "Top-level directories:"
->>"%listzip%" echo   $rootDirs ^| ForEach-Object { " - " ^+ $_ ^+ "/" }
+>>"%listzip%" echo $rootFiles ^| ForEach-Object {
+>>"%listzip%" echo "{0,12:N0} {1,12:N0}  {2}" -f $_.Len, $_.Comp, $_.Name
+>>"%listzip%" echo }
+>>"%listzip%" echo # List top-level directory names ^(no recursion^)
+>>"%listzip%" echo # Top-level dir names: first segment of any entry that has a slash
+>>"%listzip%" echo $rootDirs = $entries ^|
+>>"%listzip%" echo   Where-Object { $_.Norm -match '/' } ^|
+>>"%listzip%" echo   ForEach-Object { ($_.Norm -replace '/$','') -split '/' ^| Select-Object -First 1 } ^|
+>>"%listzip%" echo   Sort-Object -Unique
+>>"%listzip%" echo if ^($rootDirs^) {
+>>"%listzip%" echo   Write-Host "Top-level directories:"
+>>"%listzip%" echo   $rootDirs ^| ForEach-Object { Write-Host " - $_/" }
 >>"%listzip%" echo }
 >>"%listzip%" echo $z.Dispose^(^)
+REM echo type "%listzip%"
+REM type "%listzip%"
+REM echo powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -File "%listzip%" 
 powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -File "%listzip%" 
 del /f "%listzip%" >NUL 2>&1
 goto :eof
