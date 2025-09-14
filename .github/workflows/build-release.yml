@@ -24,8 +24,7 @@ jobs:
           echo "GITHUB_REF=$env:GITHUB_REF"
           echo "GITHUB_SHA=$env:GITHUB_SHA"
           git rev-parse HEAD
-          $names = 'Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico'
-          foreach ($n in $names) {
+          $names = 'Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif'` in $names) {
             $p = Join-Path "${{ github.workspace }}" $n
             if (Test-Path $p) {
                 $len = (Get-Item $p).Length
@@ -51,23 +50,6 @@ jobs:
           pip install pystray --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
           pip install Pillow --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
           pip install pyinstaller --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
-
-      #- name: Derive version from Release tag (or fallback)
-      #  id: meta
-      #  run: |
-      #    # Prefer the event's ref name (release tag, or branch for manual runs)
-      #    $raw = $env:GITHUB_REF_NAME
-      #    if (-not $raw) {
-      #      try { $raw = (git describe --tags --always) } catch { }
-      #      if (-not $raw) { $raw = (git rev-parse --short HEAD) }
-      #    }
-      #    # Sanitize for filenames: replace invalid chars, collapse whitespace, trim trailing dots
-      #    $ver = $raw -replace '[<>:""/\\|?*\x00-\x1F]', '_' -replace '\s+', '_' 
-      #    $ver = $ver.TrimEnd('.')
-      #    if (-not $ver) { $ver = "build_$($env:GITHUB_RUN_NUMBER)" }
-      #    Write-Host "Ref name: $raw"
-      #    Write-Host "Using version: $ver"
-      #    echo "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Derive version from Release tag (or fallback)
         id: meta
@@ -104,6 +86,32 @@ jobs:
           Write-Host "onefile_zip:  ${{ steps.names.outputs.onefile_zip }}"
           Write-Host "onedir_zip :  ${{ steps.names.outputs.onedir_zip }}"
 
+      # ---------- ICON from Image ----------
+      - name: Create ICO from Image (if found)
+        run: |
+          $root = "${{ github.workspace }}"
+          $names = 'Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif'
+          $sourceImage = $null
+          foreach ($n in $names) {
+            $p = Join-Path $root $n
+            if (Test-Path $p) { 
+              $sourceImage = (Resolve-Path $p).Path  # Guaranteed absolute, normalized path
+              Write-Host "Create ICON from PNG: Found source image: ${sourceImage}"
+              break
+            }
+          }
+          if ($sourceImage) {
+            python -c "
+from PIL import Image
+img = Image.open('$sourceImage').convert('RGBA')
+sizes = [(16,16), (32,32), (48,48), (256,256)]
+img.save('Stay_Awake_icon.ico', format='ICO', sizes=sizes)
+print('Created ICON Stay_Awake_icon.ico from ${sourceImage}')
+            "
+          } else {
+            Write-Host "Create ICON from PNG: No source image found for ICON creation"
+          }
+
       # ---------- ONEFILE ----------
       - name: Clean (onefile)
         run: |
@@ -114,7 +122,9 @@ jobs:
 
       - name: PyInstaller (onefile, windowed, no console)
         run: |
-          pyinstaller --clean --onefile --windowed --noconsole --name "${{ steps.names.outputs.app }}" Stay_Awake.py
+          ##pyinstaller --clean --onefile --windowed --noconsole --name "${{ steps.names.outputs.app }}" Stay_Awake.py
+          $iconParam = if (Test-Path "Stay_Awake_icon.ico") { "--icon `"Stay_Awake_icon.ico`"" } else { "" }
+          pyinstaller --clean --onefile --windowed --noconsole $iconParam --name "${{ steps.names.outputs.app }}" Stay_Awake.py
           Get-ChildItem .\dist\
 
       - name: Zip onefile exe + optional icons
@@ -122,7 +132,7 @@ jobs:
           $exePath = ".\dist\${{ steps.names.outputs.app }}.exe"
           if (!(Test-Path $exePath)) { throw "Missing expected exe: $exePath" }
           $root = "${{ github.workspace }}"
-          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
+          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif')
           $icons = @()
           foreach ($n in $names) {
             $p = Join-Path $root $n
@@ -154,7 +164,7 @@ jobs:
           $z.Dispose()
           # Presence checks (non-fatal warnings, or switch to 'throw' if you want hard failures)
           $hasExe   = "${{ steps.names.outputs.app }}.exe"   # <- just a string
-          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
+          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif')
           $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
           $names = $z.Entries | ForEach-Object FullName
           $z.Dispose()
@@ -163,7 +173,9 @@ jobs:
 
       - name: PyInstaller (onedir, windowed, no console)
         run: |
-          pyinstaller --clean --onedir --windowed --noconsole --name "${{ steps.names.outputs.app }}" Stay_Awake.py
+          ##pyinstaller --clean --onedir --windowed --noconsole --name "${{ steps.names.outputs.app }}" Stay_Awake.py
+          $iconParam = if (Test-Path "Stay_Awake_icon.ico") { "--icon `"Stay_Awake_icon.ico`"" } else { "" }
+          pyinstaller --clean --onedir --windowed --noconsole $iconParam --name "${{ steps.names.outputs.app }}" Stay_Awake.py
           Get-ChildItem .\dist\${{ steps.names.outputs.app }}\
 
       - name: Copy icons into onedir folder (next to the EXE)
@@ -171,7 +183,7 @@ jobs:
           $appDir = ".\dist\${{ steps.names.outputs.app }}"
           if (!(Test-Path $appDir)) { throw "Missing app directory: $appDir" }
           $root = "${{ github.workspace }}"
-          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
+          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif')
           $icons = @()
           foreach ($n in $names) {
             $p = Join-Path $root $n
@@ -221,7 +233,7 @@ jobs:
           }
           # Presence checks (root-level only is fine because exe & icons are at root)
           $hasExe   = "${{ steps.names.outputs.app }}.exe"
-          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
+          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif')
           $names = $rootFiles | ForEach-Object FullName
           $z.Dispose()
           if ($names -notcontains $hasExe) { Write-Warning "EXE not found at zip root." }
