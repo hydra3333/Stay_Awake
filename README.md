@@ -160,3 +160,15 @@ Unsigned, freshly built executables can be flagged by Windows SmartScreen/Defend
 ```
 --icon "PATH"   Use a specific image file for the window + tray icon.
 ```
+
+---
+## EYE OF HORUS
+
+<p align="center">
+  <img src="https://www.egypttoursportal.com/images/2025/06/Eye-of-Horus-Egypt-Tours-Portal.jpg" width="420" alt="Eye of Horus">
+</p>
+<p align="center">
+  <em>The ancient Egyptian Eye of Horus (aka Wadjet) symbol is a powerful emblem of protection, healing, and vigilance that, metaphorically, never sleeps.</em><br>
+  <em>The "Eye of Horus" is the correct term for the ancient Egyptian symbol of protection, healing, and restoration, derived from the mythical battle where Horus lost his eye, which was later magically restored.
+      The term "Horus" refers to the sky god himself, while the "Eye of Horus" is the specific symbol originating from the myth.  </em><br>
+</p>
