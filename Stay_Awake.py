@@ -134,13 +134,14 @@
 import sys
 import os
 import time
+import ctypes
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 from wakepy import keep
 import pystray
 from pystray import MenuItem as item
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image, ImageDraw, ImageTk, ImageOps
 import atexit
 import signal
 import base64
@@ -21541,17 +21542,6 @@ class Stay_AwakeTrayApp:
 
     # -------------------- UI helpers --------------------
 
-    def create_image(self):
-        """Create tray icon image (down-sized from loaded Eye image)."""
-        if self._tray_icon_image is None:
-            pil = self._load_eye_image()
-            icon_pil = self._resize_keep_aspect(pil, 64)
-            # Add small transparent border so rounded icons don't clip
-            bordered = Image.new("RGBA", (icon_pil.width + 2, icon_pil.height + 2), (0, 0, 0, 0))
-            bordered.paste(icon_pil, (1, 1))
-            self._tray_icon_image = bordered
-        return self._tray_icon_image
-
     def _center_window(self, win):
         win.update_idletasks()
         w, h = win.winfo_width(), win.winfo_height()
@@ -21690,8 +21680,67 @@ class Stay_AwakeTrayApp:
 
     # -------------------- Tray --------------------
 
+    def _pad_to_square_edge_stretch(self, im: Image.Image) -> Image.Image:
+        # Pad an image to a square by replicating outermost edge pixels (no subject stretch).
+        im = im.convert("RGBA")
+        w, h = im.size
+        if w == h:
+            return im
+        side = max(w, h)
+        lp = (side - w) // 2
+        rp = side - w - lp
+        tp = (side - h) // 2
+        bp = side - h - tp
+        sq = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+        if tp:
+            strip = im.crop((0, 0, w, 1)).resize((w, tp), Image.NEAREST)
+            sq.paste(strip, (lp, 0))
+        if bp:
+            strip = im.crop((0, h - 1, w, h)).resize((w, bp), Image.NEAREST)
+            sq.paste(strip, (lp, tp + h))
+        if lp:
+            strip = im.crop((0, 0, 1, h)).resize((lp, h), Image.NEAREST)
+            sq.paste(strip, (0, tp))
+        if rp:
+            strip = im.crop((w - 1, 0, w, h)).resize((rp, h), Image.NEAREST)
+            sq.paste(strip, (lp + w, tp))
+        sq.paste(im, (lp, tp), im)
+        return sq
+
+    def create_tray_icon_image(self):
+        """Create tray icon image (down-sized from loaded Eye image) using replicated out edge for squaring."""
+        # Determine a DPI-aware tray glyph size (approx: 16@100%, 20@125%, 24@150%, 32@200%).
+        default_DPI = 96 
+        default_system_tray_icon_size = 64
+        windows_baseline_DPI = 96.0 # 96 is Windows baseline DPI = “100%”. All DPI scaling on Windows is defined relative to 96.
+        try:
+            dpi = 0
+            #try:
+            #    dpi = ctypes.windll.user32.GetDpiForSystem()  # Win10/11
+            #except Exception:
+            #    # Fallback for older systems
+            #    LOGPIXELSX = 88
+            #    hdc = ctypes.windll.user32.GetDC(0)
+            #    dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, LOGPIXELSX)
+            #    ctypes.windll.user32.ReleaseDC(0, hdc)
+            dpi = ctypes.windll.user32.GetDpiForSystem()  # Win10/11 ... let it crash if can't get the DPI
+            if not dpi:
+                dpi = default_DPI
+                print(f"Unable to determine Display Monitor DPI, defaulting to {default_DPI}")
+            system_tray_icon_size = max(16, min(64, int(round(16 * dpi / windows_baseline_DPI)))) 
+        except Exception:
+            system_tray_icon_size = default_system_tray_icon_size
+            print(f"Unable to set system tray icon size based on Display Monitor DPI, defaulting to {default_system_tray_icon_size}")
+        if self._tray_icon_image is None:
+            pil = self._load_eye_image()
+            # Make the tray source square using edge-replication stretch pads (no subject distortion)
+            pil = self._pad_to_square_edge_stretch(pil)
+            icon_pil = self._resize_keep_aspect(pil, system_tray_icon_size)
+            self._tray_icon_image = icon_pil
+        return self._tray_icon_image
+
     def create_tray_icon(self):
-        image = self.create_image()
+        image = self.create_tray_icon_image()
         menu = pystray.Menu(
             item("Show Window", self.show_main_window, default=True),
                                            
