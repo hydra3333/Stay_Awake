@@ -163,6 +163,8 @@ jobs:
       - name: PyInstaller (onefile, windowed, no console)
         run: |
           $iconParam = if (Test-Path "Stay_Awake_icon.ico") { "--icon `"Stay_Awake_icon.ico`"" } else { "" }
+          Write-Host "iconParam=$iconParam"
+          Write-Host "pyinstaller --clean --onefile --windowed --noconsole $iconParam --name `"${{ steps.names.outputs.app }}`" Stay_Awake.py"
           pyinstaller --clean --onefile --windowed --noconsole $iconParam --name "${{ steps.names.outputs.app }}" Stay_Awake.py
           Get-ChildItem .\dist\
 
