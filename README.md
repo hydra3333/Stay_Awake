@@ -172,27 +172,21 @@ Unsigned, freshly built executables can be flagged by Windows SmartScreen/Defend
   <em>The "Eye of Horus" is the ancient Egyptian symbol of protection, healing, and restoration, derived from the mythical battle where Horus lost his eye, which was later magically restored.</em><br><br>
 </p>
 
-#### https://egypt-museum.com/mummy-plaque-of-psusennes-i/
+### https://egypt-museum.com/mummy-plaque-of-psusennes-i/
 
-<p align="left">
-<em>The ancient Egyptian "Eye of Horus" (aka "Wadjet") symbol is a powerful emblem of protection, healing, and vigilance that, metaphorically, never sleeps.</em><br><br>
-<em>The "Eye of Horus" is the ancient Egyptian symbol of protection, healing, restoration, and divine vigilance, derived from the mythical battle where Horus lost his eye, which was later magically restored.</em><br><br>
-</p>
+At the heart of the golden image composition lies *Wadjet*, the *Eye of Horus*.
 
-At the heart of the golden image composition lies Wadjet, the Eye of Horus.
-
-Flanking it are the vigilant Four Sons of Horus, each portrayed with raised arms in reverent supplication.
+Flanking it are the vigilant *Four Sons of Horus*, each portrayed with raised arms in reverent supplication.
 
 These guardian deities; 
-- Hapi (baboon-headed, protector of the lungs),
-- Imsety (human-headed, guardian of the liver),
-- Duamutef (jackal-headed, keeper of the stomach),
-- Qebehsenuef (falcon-headed, defender of the intestines)
+- *Hapi* (baboon-headed, protector of the lungs),
+- *Imsety* (human-headed, guardian of the liver),
+- *Duamutef* (jackal-headed, keeper of the stomach),
+- *Qebehsenuef* (falcon-headed, defender of the intestines)
 are more commonly seen presiding over Canopic jars. 
 
 Here, however, they appear as living shields, encircling the sacred Eye in an eternal act of guardianship.
 
-Above the tableau, their names are elegantly inscribed in hieroglyphs, accompanied by the royal cartouche of Psusennes I.
+Above the tableau, their names are elegantly inscribed in hieroglyphs, accompanied by the royal cartouche of *Psusennes I*.
 
 A fine linear frame encloses the scene, with tiny pierced holes at each corner, practical in design, allowing the plaque to be stitched securely to the mummy wrappings.
-
