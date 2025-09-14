@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="./Stay_Awake_icon.png" width="128" alt="Stay Awake icon">
+  <img src="./Stay_Awake_icon.png" width="256" alt="Stay Awake icon">
   <br>Stay_Awake
 </h1>
 
