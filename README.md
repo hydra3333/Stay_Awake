@@ -182,7 +182,7 @@ These guardian deities;
 - *Hapi* (baboon-headed, protector of the lungs),
 - *Imsety* (human-headed, guardian of the liver),
 - *Duamutef* (jackal-headed, keeper of the stomach),
-- *Qebehsenuef* (falcon-headed, defender of the intestines)
+- *Qebehsenuef* (falcon-headed, defender of the intestines)    
 are more commonly seen presiding over Canopic jars. 
 
 Here, however, they appear as living shields, encircling the sacred Eye in an eternal act of guardianship.
