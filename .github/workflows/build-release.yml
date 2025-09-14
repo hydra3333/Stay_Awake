@@ -110,43 +110,43 @@ jobs:
             # Pass path via env var (no quoting issues)
             $env:SRC_IMAGE = $sourceImage
             # Actual icon creation (pad to square; write multiple sizes)
-            $code = @'
-            import os
-            from PIL import Image, ImageOps
-            def pad_to_square_edge_stretch(im: Image.Image) -> Image.Image:
-                im = ImageOps.exif_transpose(im).convert("RGBA")
-                w, h = im.size
-                if w == h:
-                    return im
-                side = max(w, h)
-                lp = (side - w) // 2
-                rp = side - w - lp
-                tp = (side - h) // 2
-                bp = side - h - tp
-                sq = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-                if tp:
-                    strip = im.crop((0, 0, w, 1)).resize((w, tp), Image.NEAREST)
-                    sq.paste(strip, (lp, 0))
-                if bp:
-                    strip = im.crop((0, h-1, w, h)).resize((w, bp), Image.NEAREST)
-                    sq.paste(strip, (lp, tp + h))
-                if lp:
-                    strip = im.crop((0, 0, 1, h)).resize((lp, h), Image.NEAREST)
-                    sq.paste(strip, (0, tp))
-                if rp:
-                    strip = im.crop((w-1, 0, w, h)).resize((rp, h), Image.NEAREST)
-                    sq.paste(strip, (lp + w, tp))
-                sq.paste(im, (lp, tp), im)
-                return sq
-            src = os.environ["SRC_IMAGE"]
-            out = "Stay_Awake_icon.ico"
-            with Image.open(src) as im:
-                sq = pad_to_square_edge_stretch(im)
-                sq.save(out, sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)])
-            print("OK:", out)
-          '@
-            #python -c $code
-            Set-Content -Path icon_build.py -Value $code -Encoding utf8
+            $py = @(
+                'import os'
+                'from PIL import Image, ImageOps'
+                'def pad_to_square_edge_stretch(im):'
+                '    im = ImageOps.exif_transpose(im).convert("RGBA")'
+                '    w, h = im.size'
+                '    if w == h:'
+                '        return im'
+                '    side = max(w, h)'
+                '    lp = (side - w) // 2'
+                '    rp = side - w - lp'
+                '    tp = (side - h) // 2'
+                '    bp = side - h - tp'
+                '    sq = Image.new("RGBA", (side, side), (0, 0, 0, 0))'
+                '    if tp:'
+                '        strip = im.crop((0, 0, w, 1)).resize((w, tp), Image.NEAREST)'
+                '        sq.paste(strip, (lp, 0))'
+                '    if bp:'
+                '        strip = im.crop((0, h-1, w, h)).resize((w, bp), Image.NEAREST)'
+                '        sq.paste(strip, (lp, tp + h))'
+                '    if lp:'
+                '        strip = im.crop((0, 0, 1, h)).resize((lp, h), Image.NEAREST)'
+                '        sq.paste(strip, (0, tp))'
+                '    if rp:'
+                '        strip = im.crop((w-1, 0, w, h)).resize((rp, h), Image.NEAREST)'
+                '        sq.paste(strip, (lp + w, tp))'
+                '    sq.paste(im, (lp, tp), im)'
+                '    return sq'
+                'src = os.environ["SRC_IMAGE"]'
+                'out = "Stay_Awake_icon.ico"'
+                'with Image.open(src) as im:'
+                '    sq = pad_to_square_edge_stretch(im)'
+                '    sq.save(out, sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)])'
+                'print("OK:", out)'
+            )
+            # Write file as UTF-8 (no BOM)
+            [IO.File]::WriteAllLines('icon_build.py', $py, [Text.UTF8Encoding]::new($false))
             python icon_build.py
           } else {
             Write-Host "Create ICO from Image: No source image found for ICO creation."
