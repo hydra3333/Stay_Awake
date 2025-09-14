@@ -86,30 +86,54 @@ jobs:
           Write-Host "onefile_zip:  ${{ steps.names.outputs.onefile_zip }}"
           Write-Host "onedir_zip :  ${{ steps.names.outputs.onedir_zip }}"
 
-      # ---------- ICON from Image ----------
-      - name: Create ICO from Image (if found)
+      # ---------- ICON from Image for shortcut-to ----------
+      - name: Create ICO from Image for shortcut-to
+        shell: pwsh
         run: |
-          $root = "${{ github.workspace }}"
-          $names = 'Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif'
+          $root  = "${{ github.workspace }}"
+          $names = @(
+            'Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg',
+            'Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif'
+          )
           $sourceImage = $null
           foreach ($n in $names) {
             $p = Join-Path $root $n
-            if (Test-Path $p) { 
-              $sourceImage = (Resolve-Path $p).Path  # Guaranteed absolute, normalized path
-              Write-Host "Create ICON from PNG: Found source image: ${sourceImage}"
+            if (Test-Path $p) {
+              $sourceImage = (Resolve-Path $p).Path
+              Write-Host "Create ICON from Image: Found source image: ${sourceImage}"
               break
             }
           }
           if ($sourceImage) {
-            python -c "
-from PIL import Image
-img = Image.open('$sourceImage').convert('RGBA')
-sizes = [(16,16), (32,32), (48,48), (256,256)]
-img.save('Stay_Awake_icon.ico', format='ICO', sizes=sizes)
-print('Created ICON Stay_Awake_icon.ico from ${sourceImage}')
-            "
+            # Pass path via env var (no quoting issues)
+            $env:SRC_IMAGE = $sourceImage
+            # Actual icon creation (pad to square; write multiple sizes)
+            $code = @'
+import os, sys
+from PIL import Image, ImageOps
+src_path = os.environ["SRC_IMAGE"]
+out_path = "Stay_Awake_icon.ico"
+try:
+    with Image.open(src_path) as im:
+        # Respect EXIF orientation, ensure RGBA
+        im = ImageOps.exif_transpose(im).convert("RGBA")
+        # Pad to transparent square so sizes are exact
+        w, h = im.size
+        side = max(w, h)
+        square = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+        square.paste(im, ((side - w)//2, (side - h)//2), im)
+        sizes = [(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)]
+        square.save(out_path, sizes=sizes)
+    print(f"Successfully created multi-size ICO '{out_path}' from '{src_path}' with {len(sizes)} sizes")
+except Exception as e:
+    print("ICO creation failed:", e, file=sys.stderr)
+    sys.exit(1)
+'@
+            #python -c $code
+            Set-Content -Path icon_build.py -Value $code -Encoding utf8
+            python icon_build.py
           } else {
-            Write-Host "Create ICON from PNG: No source image found for ICON creation"
+            Write-Host "Create ICO from Image: No source image found for ICO creation."
           }
 
       # ---------- ONEFILE ----------
