@@ -14,10 +14,9 @@ A tiny Windows tray utility that keeps your computer **awake** (blocks sleep/hib
 * **Close (X)** in the main window exits the app completely.
 * **Icon / image priority** for the main/tray image:
 
-  1. `--icon "PATH\to\image"` (PNG/JPG/JPEG/WEBP/BMP/GIF/ICO)
-  2. Embedded base64 (if you add one)
-  3. A file named `Stay_Awake_icon.*` next to the EXE/script
-  4. A drawn fallback glyph (so it never crashes)
+  1. Embedded base64 (if you add one)
+  2. A file named `Stay_Awake_icon.*` next to the EXE/script
+  3. A drawn fallback glyph (so it never crashes)
 * **Auto-scaling:** the window image is resized to fit (longest side ≤ **512 px** by default).
 
 ---
@@ -65,19 +64,6 @@ You’ll see **three ZIPs** attached to each GitHub Release:
 
 
 ---
-
-## Using a Custom Icon/Image
-
-* Easiest: place `Stay_Awake_icon.png` (or `.jpg/.jpeg/.webp/.bmp/.gif/.ico`) next to `Stay_Awake.exe`.
-* Or start with a specific file:
-
-  ```powershell
-  .\Stay_Awake.exe --icon "C:\Path\to\YourIcon.png"
-  ```
-* Scaling is automatic; the tray bitmap is \~64 px with a small transparent border to avoid clipping.
-
----
-
 ## From Source (optional)
 
 **Requirements:** Windows 10+, Python **3.13+** recommended.
@@ -89,8 +75,6 @@ pip install Pillow  --no-cache-dir --upgrade --check-build-dependencies --upgrad
 
 # Run
 pythonw .\Stay_Awake.py
-# Or with a specific icon
-pythonw .\Stay_Awake.py --icon "C:\Path\to\YourIcon.png"
 ```
 
 ---
@@ -103,7 +87,7 @@ Onefile:
 rmdir /s /q .\dist  2>$null
 rmdir /s /q .\build 2>$null
 del /q .\Stay_Awake.spec 2>$null
-pyinstaller --clean --onefile --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
+pyinstaller --clean --onefile --windowed --noconsole --name "Stay_Awake" Stay_Awake.py --icon "Stay_Awake_icon.ico"
 
 # Optional: copy to top level
 copy /y ".\dist\Stay_Awake.exe" ".\Stay_Awake.exe"
@@ -115,7 +99,7 @@ Onedir:
 rmdir /s /q .\dist  2>$null
 rmdir /s /q .\build 2>$null
 del /q .\Stay_Awake.spec 2>$null
-pyinstaller --clean --onedir --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
+pyinstaller --clean --onedir --windowed --noconsole --name "Stay_Awake" Stay_Awake.py --icon "Stay_Awake_icon.ico"
 
 # Place optional icons next to the EXE:
 copy /y Stay_Awake_icon.* ".\dist\Stay_Awake\" 2>$null
@@ -128,6 +112,9 @@ Compress-Archive -Path ".\dist\Stay_Awake\*" -DestinationPath ".\Stay_Awake_oned
 ```
 
 ---
+
+
+**Note on icons (CI workflow):** The GitHub Actions workflow pre-builds a multi-size `Stay_Awake_icon.ico` (e.g., 16/32/48/64/128/256 px) before packaging, and passes it to PyInstaller. See the workflow YML in `.github/workflows/` for the exact steps.
 
 ## Release Automation (GitHub Actions)
 
@@ -152,14 +139,6 @@ Unsigned, freshly built executables can be flagged by Windows SmartScreen/Defend
 * **No tray icon?** It may be hidden/combined; set “Always show all icons in the taskbar” or expand the overflow area.
 * **Sleeps anyway?** Another power manager may override; check your power plan or OEM tools.
 * **Minimize didn’t hide to tray?** Ensure you’re on the latest release; both the **“\_”** and the **Minimize to System Tray** button should withdraw the window.
-
----
-
-## Command-line options
-
-```
---icon "PATH"   Use a specific image file for the window + tray icon.
-```
 
 ---
 ## The EYE OF HORUS
