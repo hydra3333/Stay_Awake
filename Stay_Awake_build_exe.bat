@@ -77,7 +77,7 @@ if defined sourceImage (
     REM echo python "!tmp_icon_creator!"
     python "!tmp_icon_creator!"
     set "EL=!ERRORLEVEL!"
-    DEL /F "!tmp_icon_creator!"
+    DEL /F "!tmp_icon_creator!" >NUL 2>&1
     if !EL! equ 0 (
         echo Create ICON from PNG: Successfully created ICO file !targetIcon!
         set "targetIcon_option=--icon "!targetIcon!""
@@ -99,7 +99,7 @@ REM type "!tmp_icon_info_displayer!"
 REM echo.
 REM echo python "!tmp_icon_info_displayer!"
 python "!tmp_icon_info_displayer!"
-DEL /F "!tmp_icon_info_displayer!"
+DEL /F "!tmp_icon_info_displayer!" >NUL 2>&1
 
 REM ---------------------------------------------------------------------------
 REM Build Stay_Awake.exe (onefile, no console window)
@@ -111,19 +111,40 @@ del /f      .\Stay_Awake.spec >NUL 2>&1
 del /f      .\Stay_Awake.zip  >NUL 2>&1
 
 if exist "!targetIcon!" (
+    echo.
+    echo pyinstaller --clean --onefile --windowed --noconsole --icon "!targetIcon!" --name "Stay_Awake" Stay_Awake.py
+    echo.
     pyinstaller --clean --onefile --windowed --noconsole --icon "!targetIcon!" --name "Stay_Awake" Stay_Awake.py
-    echo pyinstaller created onefile Stay_Awake WITH system tray .ico icon file
+    echo.
+    echo ********** pyinstaller created onefile Stay_Awake WITH system tray .ico icon file
+    echo.
 ) ELSE (
-    pyinstaller --clean --onefile --windowed --noconsole  --name "Stay_Awake" Stay_Awake.py
-    echo pyinstaller created onefile Stay_Awake WITHOUT system tray .ico icon file
+    echo.
+    echo pyinstaller --clean --onefile --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
+    pyinstaller --clean --onefile --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
+    echo.
+    echo ********** pyinstaller created onefile Stay_Awake WITHOUT system tray .ico icon file
+    echo.
 )
-REM copy /Y ".\dist\Stay_Awake.exe" ".\Stay_Awake.exe" >NUL
+COPY /Y "!sourceImage!" ".\dist\" >NUL 2>&1
+COPY /Y "!targetIcon!" ".\dist\" >NUL 2>&1
+REM echo.
+REM echo DIR /S /B ".\dist"
+REM DIR /S /B ".\dist"
+REM echo.
+REM echo DIR /S /B ".\build"
+REM DIR /S /B ".\build"
+REM echo.
 
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive ^
-  -Command "Compress-Archive -Path '.\dist\Stay_Awake\*' -DestinationPath '.\Stay_Awake_onefile.zip' -Force -CompressionLevel Optimal"
+set "target_zip_file=.\Stay_Awake_onefile.zip"
+echo powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive  -Command "Compress-Archive -Path '.\dist\*' -DestinationPath '!target_zip_file!' -Force -CompressionLevel Optimal" 
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive  -Command "Compress-Archive -Path '.\dist\*' -DestinationPath '!target_zip_file!' -Force -CompressionLevel Optimal" 
 set "ERR=%ERRORLEVEL%"
-echo.
 echo ==== onefile Compress-Archive exit code: %ERR%
+
+echo.
+echo Content of root folder in "!target_zip_file!" :
+call :zip_top_folder_lister "!target_zip_file!"
 echo.
 
 REM ---------------------------------------------------------------------------
@@ -134,27 +155,40 @@ rmdir /s /q .\dist  >NUL 2>&1
 rmdir /s /q .\build >NUL 2>&1
 del /f      .\Stay_Awake.spec >NUL 2>&1
 del /f      .\Stay_Awake.zip  >NUL 2>&1
-
-
 if exist "!targetIcon!" (
+    echo.
+    echo pyinstaller --clean --onedir --windowed --noconsole --icon "!targetIcon!" --name "Stay_Awake" Stay_Awake.py
+    echo.
     pyinstaller --clean --onedir --windowed --noconsole --icon "!targetIcon!" --name "Stay_Awake" Stay_Awake.py
-    echo pyinstaller created onedir Stay_Awake WITH system tray .ico icon file
+    echo.
+    echo ********** pyinstaller created onedir Stay_Awake WITH system tray .ico icon file
+    echo.
 ) ELSE (
+    echo.
+    echo pyinstaller --clean --onedir --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
+    echo.
     pyinstaller --clean --onedir --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
-    echo pyinstaller created onedir Stay_Awake WITHOUT system tray .ico icon file
+    echo.
+    echo ********** pyinstaller created onedir Stay_Awake WITHOUT system tray .ico icon file
+    echo.
 )
 REM Place optional icon images next to the EXE (inside the app folder):
-copy /Y Stay_Awake_icon.* ".\dist\Stay_Awake\" >NUL 2>&1
+COPY /Y "!sourceImage!" ".\dist\Stay_Awake\" >NUL 2>&1
+COPY /Y "!targetIcon!"  ".\dist\Stay_Awake\" >NUL 2>&1
 
 REM ---------------------------------------------------------------------------
 REM Zip the onedir output (PowerShell 5.1 compatible)
 REM   - Using the contents of dist\Stay_Awake so the ZIP root is the app itself
 REM ---------------------------------------------------------------------------
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive ^
-  -Command "Compress-Archive -Path '.\dist\Stay_Awake\*' -DestinationPath '.\Stay_Awake_onedir.zip' -Force -CompressionLevel Optimal"
+set "target_zip_file=.\Stay_Awake_onedir.zip"
+echo powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -Command "Compress-Archive -Path '.\dist\Stay_Awake\*' -DestinationPath '!target_zip_file!' -Force -CompressionLevel Optimal"
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -Command "Compress-Archive -Path '.\dist\Stay_Awake\*' -DestinationPath '!target_zip_file!' -Force -CompressionLevel Optimal"
 set "ERR=%ERRORLEVEL%"
-echo.
 echo ==== onedir Compress-Archive exit code: %ERR%
+
+echo.
+echo Content of root folder in "!target_zip_file!" :
+call :zip_top_folder_lister "!target_zip_file!"
 echo.
 
 rmdir /s /q .\dist  >NUL 2>&1
@@ -243,4 +277,31 @@ echo In display_d3
     echo         w, h = e['w'], e['h'] >>"!tmp_icon_info_displayer!"
     echo         im = load_exact_with_pillow^(ico_path, w, h^) >>"!tmp_icon_info_displayer!"
     echo         print^(f"Loaded via Pillow size-hint {w}x{h}  - decoded: {im.size}, mode={im.mode}, format={im.format}"^) >>"!tmp_icon_info_displayer!"
+goto :eof
+
+:zip_top_folder_lister
+REM p1 = name of the zip file
+set "zipfile=%~dpnx1"
+set "listzip=.\tmp_listzip.ps1"
+del /f "%listzip%" >NUL 2>&1
+>>"%listzip%" echo Add-Type -AssemblyName System.IO.Compression.FileSystem
+>>"%listzip%" echo $zipPath = "%zipfile%"
+>>"%listzip%" echo $z = [System.IO.Compression.ZipFile]::OpenRead^($zipPath^)
+>>"%listzip%" echo $entries = $z.Entries
+>>"%listzip%" echo # Files at ZIP root: entries whose FullName has no slash
+>>"%listzip%" echo $rootFiles = $entries ^| Where-Object { $_.FullName -notmatch '/' }
+>>"%listzip%" echo # Top-level dir names inferred from first segment
+>>"%listzip%" echo $rootDirs = $entries ^| Where-Object { $_.FullName -match '/' } ^| ForEach-Object { ^($_.FullName -replace '/$',''^) -split '/' ^| Select-Object -First 1 } ^| Sort-Object -Unique
+>>"%listzip%" echo ""
+>>"%listzip%" echo "ZIP: $zipPath"
+>>"%listzip%" echo "{0,12} {1,12}  {2}" -f "Size","CompSize","Name"
+>>"%listzip%" echo "{0,12} {1,12}  {2}" -f "----","--------","----"
+>>"%listzip%" echo $rootFiles ^| ForEach-Object { "{0,12:N0} {1,12:N0}  {2}" -f $_.Length, $_.CompressedLength, $_.FullName }
+>>"%listzip%" echo if ^($rootDirs.Count^) { ""
+>>"%listzip%" echo   "Top-level directories:"
+>>"%listzip%" echo   $rootDirs ^| ForEach-Object { " - " ^+ $_ ^+ "/" }
+>>"%listzip%" echo }
+>>"%listzip%" echo $z.Dispose^(^)
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -File "%listzip%" 
+del /f "%listzip%" >NUL 2>&1
 goto :eof
