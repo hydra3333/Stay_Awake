@@ -105,29 +105,44 @@ jobs:
             }
           }
           if ($sourceImage) {
+            Write-Host "Create ICON: Found $sourceImage"
             # Pass path via env var (no quoting issues)
             $env:SRC_IMAGE = $sourceImage
             # Actual icon creation (pad to square; write multiple sizes)
             $code = @'
-import os, sys
+import os
 from PIL import Image, ImageOps
-src_path = os.environ["SRC_IMAGE"]
-out_path = "Stay_Awake_icon.ico"
-try:
-    with Image.open(src_path) as im:
-        # Respect EXIF orientation, ensure RGBA
-        im = ImageOps.exif_transpose(im).convert("RGBA")
-        # Pad to transparent square so sizes are exact
-        w, h = im.size
-        side = max(w, h)
-        square = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-        square.paste(im, ((side - w)//2, (side - h)//2), im)
-        sizes = [(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)]
-        square.save(out_path, sizes=sizes)
-    print(f"Successfully created multi-size ICO '{out_path}' from '{src_path}' with {len(sizes)} sizes")
-except Exception as e:
-    print("ICO creation failed:", e, file=sys.stderr)
-    sys.exit(1)
+def pad_to_square_edge_stretch(im: Image.Image) -> Image.Image:
+    im = ImageOps.exif_transpose(im).convert("RGBA")
+    w, h = im.size
+    if w == h:
+        return im
+    side = max(w, h)
+    lp = (side - w) // 2
+    rp = side - w - lp
+    tp = (side - h) // 2
+    bp = side - h - tp
+    sq = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    if tp:
+        strip = im.crop((0, 0, w, 1)).resize((w, tp), Image.NEAREST)
+        sq.paste(strip, (lp, 0))
+    if bp:
+        strip = im.crop((0, h-1, w, h)).resize((w, bp), Image.NEAREST)
+        sq.paste(strip, (lp, tp + h))
+    if lp:
+        strip = im.crop((0, 0, 1, h)).resize((lp, h), Image.NEAREST)
+        sq.paste(strip, (0, tp))
+    if rp:
+        strip = im.crop((w-1, 0, w, h)).resize((rp, h), Image.NEAREST)
+        sq.paste(strip, (lp + w, tp))
+    sq.paste(im, (lp, tp), im)
+    return sq
+src = os.environ["SRC_IMAGE"]
+out = "Stay_Awake_icon.ico"
+with Image.open(src) as im:
+    sq = pad_to_square_edge_stretch(im)
+    sq.save(out, sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)])
+print("OK:", out)
 '@
             #python -c $code
             Set-Content -Path icon_build.py -Value $code -Encoding utf8
@@ -146,7 +161,6 @@ except Exception as e:
 
       - name: PyInstaller (onefile, windowed, no console)
         run: |
-          ##pyinstaller --clean --onefile --windowed --noconsole --name "${{ steps.names.outputs.app }}" Stay_Awake.py
           $iconParam = if (Test-Path "Stay_Awake_icon.ico") { "--icon `"Stay_Awake_icon.ico`"" } else { "" }
           pyinstaller --clean --onefile --windowed --noconsole $iconParam --name "${{ steps.names.outputs.app }}" Stay_Awake.py
           Get-ChildItem .\dist\
@@ -156,7 +170,7 @@ except Exception as e:
           $exePath = ".\dist\${{ steps.names.outputs.app }}.exe"
           if (!(Test-Path $exePath)) { throw "Missing expected exe: $exePath" }
           $root = "${{ github.workspace }}"
-          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif')
+          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
           $icons = @()
           foreach ($n in $names) {
             $p = Join-Path $root $n
@@ -188,16 +202,16 @@ except Exception as e:
           $z.Dispose()
           # Presence checks (non-fatal warnings, or switch to 'throw' if you want hard failures)
           $hasExe   = "${{ steps.names.outputs.app }}.exe"   # <- just a string
-          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif')
+          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
           $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
           $names = $z.Entries | ForEach-Object FullName
           $z.Dispose()
           if ($names -notcontains $hasExe) { Write-Warning "EXE not found in onefile zip." }
           if (-not ($names | Where-Object { $_ -in $iconLike })) { Write-Warning "No icon file found in onefile zip." }
 
+      # ---------- ONEDIR ----------
       - name: PyInstaller (onedir, windowed, no console)
         run: |
-          ##pyinstaller --clean --onedir --windowed --noconsole --name "${{ steps.names.outputs.app }}" Stay_Awake.py
           $iconParam = if (Test-Path "Stay_Awake_icon.ico") { "--icon `"Stay_Awake_icon.ico`"" } else { "" }
           pyinstaller --clean --onedir --windowed --noconsole $iconParam --name "${{ steps.names.outputs.app }}" Stay_Awake.py
           Get-ChildItem .\dist\${{ steps.names.outputs.app }}\
@@ -207,7 +221,7 @@ except Exception as e:
           $appDir = ".\dist\${{ steps.names.outputs.app }}"
           if (!(Test-Path $appDir)) { throw "Missing app directory: $appDir" }
           $root = "${{ github.workspace }}"
-          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif')
+          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
           $icons = @()
           foreach ($n in $names) {
             $p = Join-Path $root $n
@@ -257,7 +271,7 @@ except Exception as e:
           }
           # Presence checks (root-level only is fine because exe & icons are at root)
           $hasExe   = "${{ steps.names.outputs.app }}.exe"
-          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif')
+          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
           $names = $rootFiles | ForEach-Object FullName
           $z.Dispose()
           if ($names -notcontains $hasExe) { Write-Warning "EXE not found at zip root." }
