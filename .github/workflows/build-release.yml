@@ -24,7 +24,8 @@ jobs:
           echo "GITHUB_REF=$env:GITHUB_REF"
           echo "GITHUB_SHA=$env:GITHUB_SHA"
           git rev-parse HEAD
-          $names = 'Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif'` in $names) {
+          $names = 'Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif'
+          foreach ($n in $names) {          
             $p = Join-Path "${{ github.workspace }}" $n
             if (Test-Path $p) {
                 $len = (Get-Item $p).Length
