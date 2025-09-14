@@ -1,4 +1,4 @@
-# Stay\_Awake
+# <img src="./Stay_Awake_icon.png" width="128" alt="Stay Awake icon"> Stay\_Awake
 
 A tiny Windows tray utility that keeps your computer **awake** (blocks sleep/hibernation) while still allowing the **display to sleep**. Built with Python + tkinter; distributed as PyInstaller **onefile** and **onedir** builds.
 
