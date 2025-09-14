@@ -162,10 +162,20 @@ jobs:
 
       - name: PyInstaller (onefile, windowed, no console)
         run: |
-          $iconParam = if (Test-Path "Stay_Awake_icon.ico") { "--icon `"Stay_Awake_icon.ico`"" } else { "" }
-          Write-Host "iconParam=$iconParam"
-          Write-Host "pyinstaller --clean --onefile --windowed --noconsole $iconParam --name `"${{ steps.names.outputs.app }}`" Stay_Awake.py"
-          pyinstaller --clean --onefile --windowed --noconsole $iconParam --name "${{ steps.names.outputs.app }}" Stay_Awake.py
+          $args = @(
+            '--clean',
+            '--onefile',
+            '--windowed',
+            '--noconsole',
+            '--name', "${{ steps.names.outputs.app }}",
+          )
+          if (Test-Path 'Stay_Awake_icon.ico') {
+            $args += @('--icon', 'Stay_Awake_icon.ico')   # add as two separate args
+          }
+          $args += @('Stay_Awake.py')
+          Write-Host "ONEFILE pyinstaller commandline:"
+          Write-Host "pyinstaller $($args -join ' ')"
+          pyinstaller @args
           Get-ChildItem .\dist\
 
       - name: Zip onefile exe + optional icons
@@ -215,8 +225,20 @@ jobs:
       # ---------- ONEDIR ----------
       - name: PyInstaller (onedir, windowed, no console)
         run: |
-          $iconParam = if (Test-Path "Stay_Awake_icon.ico") { "--icon `"Stay_Awake_icon.ico`"" } else { "" }
-          pyinstaller --clean --onedir --windowed --noconsole $iconParam --name "${{ steps.names.outputs.app }}" Stay_Awake.py
+          $args = @(
+            '--clean',
+            '--onedir',
+            '--windowed',
+            '--noconsole',
+            '--name', "${{ steps.names.outputs.app }}",
+          )
+          if (Test-Path 'Stay_Awake_icon.ico') {
+            $args += @('--icon', 'Stay_Awake_icon.ico')   # add as two separate args
+          }
+          $args += @('Stay_Awake.py')
+          Write-Host "ONEDIR pyinstaller commandline:"
+          Write-Host "pyinstaller $($args -join ' ')"
+          pyinstaller @args
           Get-ChildItem .\dist\${{ steps.names.outputs.app }}\
 
       - name: Copy icons into onedir folder (next to the EXE)
