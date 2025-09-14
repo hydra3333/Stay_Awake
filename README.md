@@ -168,7 +168,7 @@ Unsigned, freshly built executables can be flagged by Windows SmartScreen/Defend
   <img src="./GOLD_RELIEF_EYE_OF_HORUS.jpg" alt="Eye of Horus">
 </p>
 <p align="center">
-  <em>The ancient Egyptian "Eye of Horus" (aka "Wadjet") symbol is a powerful emblem of protection, healing, and vigilance that, metaphorically, never sleeps.</em><br><br>
+  <em>The ancient Egyptian "Eye of Horus" (aka "Wadjet") symbol is a powerful emblem of protection, healing, and divine vigilance that, metaphorically, never sleeps.</em><br><br>
   <em>The "Eye of Horus" is the ancient Egyptian symbol of protection, healing, and restoration, derived from the mythical battle where Horus lost his eye, which was later magically restored.</em><br><br>
 </p>
 
