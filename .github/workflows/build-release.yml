@@ -167,7 +167,7 @@ jobs:
             '--onefile',
             '--windowed',
             '--noconsole',
-            '--name', "${{ steps.names.outputs.app }}",
+            '--name', "${{ steps.names.outputs.app }}"
           )
           if (Test-Path 'Stay_Awake_icon.ico') {
             $args += @('--icon', 'Stay_Awake_icon.ico')   # add as two separate args
@@ -230,7 +230,7 @@ jobs:
             '--onedir',
             '--windowed',
             '--noconsole',
-            '--name', "${{ steps.names.outputs.app }}",
+            '--name', "${{ steps.names.outputs.app }}"
           )
           if (Test-Path 'Stay_Awake_icon.ico') {
             $args += @('--icon', 'Stay_Awake_icon.ico')   # add as two separate args
