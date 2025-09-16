@@ -148,6 +148,7 @@ import base64
 import io
 from pathlib import Path
 import argparse
+import re  # for --for duration parsing
 
 # --------------------------------------------------------------------
 # Config
@@ -161,6 +162,44 @@ APP_BLURB = (
     "Display Monitor sleep is allowed.\n"
     "Closing this app re-allows sleep & hibernation."
 )
+
+_DURATION_TOKEN = re.compile(r'\s*(\d+)\s*([dhmsDHMS]?)')
+
+# Candidate image file names (same folder as this script/EXE) in this order
+IMAGE_CANDIDATES = [
+    "Stay_Awake_icon.png",
+    "Stay_Awake_icon.jpg",
+    "Stay_Awake_icon.jpeg",
+    "Stay_Awake_icon.webp",
+    "Stay_Awake_icon.bmp",
+    "Stay_Awake_icon.gif",
+    "Stay_Awake_icon.ico",
+]
+
+# -------------------- Countdown cadence config --------------------
+# Each rule is (threshold_seconds, cadence_ms) and is evaluated in order.
+# "threshold_seconds" means: if remaining_time_seconds > threshold_seconds → use cadence_ms.
+# Keep the last rule as a catch-all with -1.
+COUNTDOWN_CADENCE: list[tuple[int, int]] = [
+    (3_600, 600_000),  # > 60 min  → update every 600s (10 mins)
+    (1_800, 300_000),  # > 30 min  → update every 300s (5 mins)
+    (900, 60_000),  # > 15 min  → update every 60s
+    (600, 30_000),  # > 10 min  → update every 30s
+    (300, 15_000),  # >  5 min  → update every 15s
+    (120, 10_000),  # >  2 min  → update every 10s
+    ( 60,  5_000),  # >  1 min  → update every 5s
+    ( 30,  2_000),  # > 30 sec  → update every 2s
+    (-1,  1_000),   # ≤ 30 sec  → update every 1s (catch-all)
+]
+#for threshold, cadence in COUNTDOWN_CADENCE:
+#    print(f"[DEBUG] COUNTDOWN_CADENCE (lower bound seconds={threshold}, update frequency seconds)={cadence/1000}")
+# When the window isn't viewable, throttle updates to at least this interval,
+# except during the final N seconds (so short runs still tick fast near the end).
+HIDDEN_CADENCE_MIN_MS        = 60_000
+HIDDEN_BACKOFF_UNTIL_SECS    = 60
+# if time_remaining >= HARD_CADENCE_SNAP_TO_THRESHOLD_SECONDS and seconds of time_remaining is not at the multiple of an update interval for the current cadence,
+# then fire appropriately so timer next appears at a multiple of an update interval for the current cadence
+HARD_CADENCE_SNAP_TO_THRESHOLD_SECONDS = 60 
 
 # --------------------------------------------------------------------
 # PASTE YOUR BASE64 HERE (leave empty to use file/CLI fallback)
@@ -21407,19 +21446,8 @@ EYE_IMAGE_BASE64 = (
             "zPTRHYzHe+kxxv8fSCQ8kY4DHjsAAAAASUVORK5CYII="
         )
 
-# Candidate file names (same folder as this script/EXE) in this order
-IMAGE_CANDIDATES = [
-    "Stay_Awake_icon.png",
-    "Stay_Awake_icon.jpg",
-    "Stay_Awake_icon.jpeg",
-    "Stay_Awake_icon.webp",
-    "Stay_Awake_icon.bmp",
-    "Stay_Awake_icon.gif",
-    "Stay_Awake_icon.ico",
-]
-
 class Stay_AwakeTrayApp:
-    def __init__(self, icon_override_path: str | None = None):
+    def __init__(self, icon_override_path: str | None = None, auto_quit_seconds: int | None = None):
         self.running = False
         self.icon = None
         self.main_window = None
@@ -21433,6 +21461,21 @@ class Stay_AwakeTrayApp:
 
         # Optional CLI override path
         self.icon_override_path = icon_override_path
+        
+        # Optional CLI quit timer
+        self.auto_quit_seconds = auto_quit_seconds
+        self._auto_quit_timer = None
+
+        # NEW: used for display / countdown
+        self.auto_quit_deadline = None      # monotonic timestamp (for precise countdown)
+        self.auto_quit_walltime = None      # time.time() timestamp (for human ETA)
+        self._eta_value = None
+        self._countdown_value = None
+        self._countdown_after_id = None
+        self._cadence_value = None
+        self._last_cadence_s = None  # last cadence displayed (seconds)
+
+        # register signals and cleanup
         atexit.register(self.cleanup)
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -21588,8 +21631,48 @@ class Stay_AwakeTrayApp:
         ttk.Button(btns, text="Minimize to System Tray", command=self.minimize_to_tray).pack(side=tk.LEFT, padx=(0, 8))
         ttk.Button(btns, text="Quit", command=self.quit_from_window).pack(side=tk.RIGHT, padx=(8, 0))
 
-        # Status hint
-        ttk.Label(container, text="Right-click the tray icon for options.", foreground="gray").pack(side=tk.BOTTOM, pady=(8, 0))
+        # Status frame + countdown area (bottom, left-aligned)
+        status_frame = ttk.Frame(container)
+        status_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(8, 0))
+    
+        # Status hint inside the Status frame
+        ttk.Label(
+            status_frame,
+            text="Right-click the tray icon for options.",
+            foreground="gray",
+            justify="center"
+        ).pack(anchor="center")
+        
+        # ETA + countdown (only if --for was given) inside the Status frame
+        if self.auto_quit_seconds and self.auto_quit_seconds > 0 and self.auto_quit_walltime:
+            # Center this whole "table" within the bottom status area
+            countdown = ttk.Frame(status_frame)
+            countdown.pack(anchor="center", pady=(6, 0))
+            # Row 1: "Auto-quit at:"  |  <YYYY-MM-DD HH:MM:SS>
+            eta_text = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.auto_quit_walltime))
+            ttk.Label(countdown, text="Auto-quit at:", justify="right").grid(row=0, column=0, sticky="e", padx=(0, 8), pady=(0, 2))
+            self._eta_value = ttk.Label(countdown, text=eta_text, justify="left")
+            self._eta_value.grid(row=0, column=1, sticky="w", pady=(0, 2))
+            # Row 2: "Time remaining:" |  <DDDd hh:mm:ss>
+            ttk.Label(countdown, text="Time remaining:", justify="right").grid(row=1, column=0, sticky="e", padx=(0, 8))
+            self._countdown_value = ttk.Label(countdown, text="—", justify="left")
+            self._countdown_value.grid(row=1, column=1, sticky="w")
+            # Row 3: "Timer update frequency:" |  <HH:MM:SS>  (starts blank; will be set by ticker)
+            self._cadence_label = ttk.Label(countdown, text="Timer update frequency:", justify="right").grid(row=2, column=0, sticky="e", padx=(0, 8))
+            self._cadence_value = ttk.Label(countdown, text="—", justify="left")
+            self._cadence_value.grid(row=2, column=1, sticky="w")
+            # Columns don’t need weights; we want natural width and center as a unit
+            # but if you want them to stretch evenly, uncomment:
+            # countdown.grid_columnconfigure(0, weight=1)
+            # countdown.grid_columnconfigure(1, weight=1)
+            # start low-churn countdown updates
+            # INITIAL value immediately (even if not yet viewable)
+            rem0 = max(0, int(round(self.auto_quit_deadline - time.monotonic())))
+            self._countdown_value.configure(text=self._format_dhms(rem0))
+            # The tiny delay lets the window become viewable, then the tick function takes over and keeps rescheduling with the cadence
+            self._countdown_after_id = self.main_window.after(250, self._schedule_countdown_tick)
+
+        # finally, center the window
         self._center_window(self.main_window)
 
     # -------------------- Window controls --------------------
@@ -21606,6 +21689,8 @@ class Stay_AwakeTrayApp:
                 self.main_window.lift()
                 self.main_window.focus_force()
                 self.window_visible = True
+                if self.auto_quit_deadline:     # if counting down, reschedule
+                    self._schedule_countdown_tick()
         if not self._call_on_main(_impl):
             return
         _impl()
@@ -21635,15 +21720,52 @@ class Stay_AwakeTrayApp:
             sys.exit(1)
 
     def cleanup(self):
+        # run once only (atexit + signals + manual quit may all hit this)
+        if getattr(self, "_cleanup_done", False):
+            return
+        self._cleanup_done = True
+        # 1) cancel the auto-quit timer so it can't fire during shutdown
+        t = getattr(self, "_auto_quit_timer", None)
+        if t:
+            try:
+                t.cancel()
+            except Exception:
+                pass
+            finally:
+                self._auto_quit_timer = None
+        # 2) restore normal power management (wakepy context exit)
         if self.running and self.keep_awake_context:
             print("Cleaning up - restoring normal power management.")
             try:
                 self.keep_awake_context.__exit__(None, None, None)
-                self.running = False
-                self.keep_awake_context = None
                 print("Normal power management restored")
             except Exception as e:
                 print(f"Error during cleanup: {e}")
+            finally:
+                self.running = False
+                self.keep_awake_context = None
+        # 3) Belt-and-braces UI teardown (usually already handled)
+        #    As a last-resort fallback (normally handled in quit/signal paths)
+        try:
+            if self.icon:
+                self.icon.visible = False
+                self.icon.stop()
+        except Exception:
+            pass
+        try:
+            if self.main_window and self.main_window.winfo_exists():
+                # If mainloop is likely still running, schedule destroy on Tk thread
+                self.main_window.after(0, self.main_window.destroy)
+        except Exception:
+            pass
+        # cancel any pending scheduled tick (belt-and-braces)
+        if self._countdown_after_id:
+            try:
+                self.main_window.after_cancel(self._countdown_after_id)
+            except Exception:
+                pass
+            finally:
+                self._countdown_after_id = None
 
     def signal_handler(self, signum, frame):
         print(f"Received signal {signum}, cleaning up.")
@@ -21677,6 +21799,106 @@ class Stay_AwakeTrayApp:
         if not self._call_on_main(_impl):
             return
         _impl()
+
+    # -------------------- Auto-quit with ETA and Countdown --------------------
+
+    def _start_auto_quit_timer(self, seconds: int):
+        if not seconds or seconds <= 0:
+            return
+        # record both times for ETA / countdown features
+        self.auto_quit_deadline = time.monotonic() + seconds
+        self.auto_quit_walltime = time.time() + seconds
+        def _fire():
+            print(f"Auto-quit timer expired after {seconds}s; quitting…")
+            try:
+                if self.main_window and self.main_window.winfo_exists():
+                    # schedule quit on the Tk thread
+                    self.main_window.after(0, lambda: self.quit_application(None, None))
+                else:
+                    self.quit_application(None, None)
+            except Exception:
+                import os
+                os._exit(0)
+        t = threading.Timer(seconds, _fire)
+        t.daemon = True
+        t.start()
+        self._auto_quit_timer = t
+
+    def _format_dhms(self, total_seconds: int) -> str:
+        # DDDd hh:mm:ss (omit days if 0)
+        if total_seconds < 0:
+            total_seconds = 0
+        d, r = divmod(total_seconds, 86400)
+        h, r = divmod(r, 3600)
+        m, s = divmod(r, 60)
+        return (f"{d}d {h:02d}:{m:02d}:{s:02d}") if d else (f"{h:02d}:{m:02d}:{s:02d}")
+
+    def _schedule_countdown_tick(self):
+        # If countdown isn’t active or window doesn’t exist, cancel any pending tick and bail
+        if not self.auto_quit_deadline or not (self.main_window and self.main_window.winfo_exists()):
+            if self._countdown_after_id:
+                try:
+                    self.main_window.after_cancel(self._countdown_after_id)
+                except Exception:
+                    pass
+                finally:
+                    self._countdown_after_id = None
+            return
+        # If the window isn't visible, throttle updates (saves even more CPU)
+        # Determine visibility (use Tk’s truth)
+        try:
+            visible = bool(self.main_window.winfo_viewable())
+        except Exception:
+            visible = True
+        now = time.monotonic()
+        rem = max(0, int(round(self.auto_quit_deadline - now)))
+        # Update the value cell in the 2-column table
+        target = getattr(self, "_countdown_value", None)
+        if visible and target:
+            target.configure(text=self._format_dhms(rem))
+        # Pick next update interval from the global configured cadence
+        next_ms = 1_000  # default (should be overridden by the loop)
+        for threshold, cadence in COUNTDOWN_CADENCE:
+            if rem > threshold:
+                next_ms = cadence
+                break
+        # Snap first update to a cadence boundary when we're still "far out"
+        if rem >= HARD_CADENCE_SNAP_TO_THRESHOLD_SECONDS:
+            cadence_s = max(1, next_ms // 1000)   # current cadence (sec)
+            phase = rem % cadence_s               # how far we are from the next boundary
+            if phase != 0:
+                snap_ms = phase * 1000            # bring next tick to the boundary
+                # avoid micro-sleeps right at the boundary; nudge to the next step if <200ms
+                if snap_ms < 200:
+                    snap_ms += cadence_s * 1000
+                # only snap sooner than the regular cadence
+                if snap_ms < next_ms:
+                    next_ms = snap_ms
+                #print(f"[DEBUG][SNAP to next cadence boundary][tick] rem={rem}s next_ms={next_ms}")
+        # If not visible, back off to a larger interval unless we're in the last N seconds
+        # (define HIDDEN_CADENCE_MIN_MS and HIDDEN_BACKOFF_UNTIL_SECS at module scope if you use this)
+        if not visible and rem > HIDDEN_BACKOFF_UNTIL_SECS and next_ms < HIDDEN_CADENCE_MIN_MS:
+            next_ms = HIDDEN_CADENCE_MIN_MS
+
+        # Show prevailing update cadence only when it actually changes (saves churn)
+        cad_s = max(1, int(round(next_ms / 1000)))
+        if getattr(self, "_cadence_value", None) and visible:
+            if self._last_cadence_s != cad_s:
+                self._cadence_value.configure(text=self._format_dhms(cad_s))
+                self._last_cadence_s = cad_s
+                #print(f"[DEBUG][tick] rem={rem}s next_ms={next_ms} "
+                #    f"countdown='{self._countdown_value.cget('text') if self._countdown_value and self._countdown_value.winfo_exists() else None}' "
+                #    f"cadence='{self._cadence_value.cget('text') if self._cadence_value and self._cadence_value.winfo_exists() else None}'")
+        #---
+        # Cancel any previously scheduled tick before scheduling the next one
+        if self._countdown_after_id:
+            try:
+                self.main_window.after_cancel(self._countdown_after_id)
+            except Exception:
+                pass
+        # Chain the next tick
+        self._countdown_after_id = self.main_window.after(next_ms, self._schedule_countdown_tick)
+        #---
 
     # -------------------- Tray --------------------
 
@@ -21753,18 +21975,77 @@ class Stay_AwakeTrayApp:
 
     def run(self):
         self.start_Stay_Awake()
+        if self.auto_quit_seconds and (self.auto_quit_seconds > 0):
+            self._start_auto_quit_timer(self.auto_quit_seconds)
         self.create_main_window()
         tray_thread = threading.Thread(target=self.create_tray_icon, daemon=True)
         tray_thread.start()
         self.main_window.mainloop()
 
+# -------------------- CLI: duration parsing --------------------
+
+def parse_duration_to_seconds(text: str) -> int:
+    """
+    Parse '3d4h5s', '2h', '90m', '3600s', or composites with spaces (case-insensitive).
+    Bare numbers are minutes. Returns total seconds (int).
+    """
+    if not text or not str(text).strip():
+        raise ValueError("Empty duration")
+    s = str(text).strip()
+    total = 0
+    last_end = 0
+    any_match = False
+    for m in _DURATION_TOKEN.finditer(s):
+        # Disallow non-space junk between tokens
+        if m.start() != last_end and s[last_end:m.start()].strip():
+            raise ValueError(f"Invalid duration syntax near: {s[last_end:m.start()]!r}")
+        val = int(m.group(1))
+        unit = (m.group(2) or '').lower()
+        if unit == 'd':
+            total += val * 86400
+        elif unit == 'h':
+            total += val * 3600
+        elif unit == 'm' or unit == '':
+            total += val * 60
+        elif unit == 's':
+            total += val
+        else:
+            # Shouldn't occur due to the regex, but keep it defensive
+            raise ValueError(f"Unknown unit: {unit!r}")
+        last_end = m.end()
+        any_match = True
+    # Must have matched at least one token and consumed the string (whitespace allowed at the end)
+    if not any_match or s[last_end:].strip():
+        raise ValueError(f"Invalid duration: {text!r}")
+    if total < 0:
+        raise ValueError("Duration must be >= 0")
+    return total
+
 def main():
                                        
     parser = argparse.ArgumentParser(description="Stay_Awake system tray tool")
     parser.add_argument("--icon", dest="icon_path", metavar="PATH", help="Path to an image file (PNG/JPG/JPEG/WEBP/BMP/GIF/ICO) used for the app icon & window image.")
+    parser.add_argument("--for", dest="for_duration", metavar="DURATION", help="Auto-quit after duration (e.g., 45m, 2h, 1h30m, 3600s). Bare number = minutes. 0 is no timeout")
     args = parser.parse_args()
+
+    auto_secs = None
+    if args.for_duration:
+        try:
+            auto_secs = parse_duration_to_seconds(args.for_duration)
+            if (auto_secs > 0):
+                d, r = divmod(auto_secs, 86400); h, r = divmod(r,3600); m, s = divmod(r,60)
+                pretty = (f"{d}d {h:02d}:{m:02d}:{s:02d}") if d else (f"{h:02d}:{m:02d}:{s:02d}")
+                print(f"--for: will auto-quit after {auto_secs} seconds ({pretty}).")
+                #print(f"--for: will auto-quit after {auto_secs} seconds.")
+            else:
+                auto_secs = None
+                print(f"--for 0 seconds specified, auto-quit is disabled.")
+        except ValueError as e:
+            print(f"Invalid --for value: {e}")
+            sys.exit(2)
+
     try:
-        app = Stay_AwakeTrayApp(icon_override_path=args.icon_path)
+        app = Stay_AwakeTrayApp(icon_override_path=args.icon_path, auto_quit_seconds=auto_secs)
         app.run()
     except KeyboardInterrupt:
         print("\nInterrupted by user")
@@ -21772,7 +22053,7 @@ def main():
         print(f"Unexpected error: {e}")
     finally:
         print("Final cleanup...")
-        sys.exit(1)
+        #sys.exit(0) # quit paths already call sys.exit(0)
 
 if __name__ == "__main__":
     main()
