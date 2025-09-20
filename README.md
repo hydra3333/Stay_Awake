@@ -5,7 +5,7 @@
 
 A tiny Windows tray utility that keeps your computer **awake** (blocks sleep/hibernation) while still allowing the **display monitor to sleep**. Built with Python + tkinter; distributed as PyInstaller **onefile** and **onedir** builds.
 
-## What it does (in plain English)
+## What it does
 
 * While Stay\_Awake runs, it requests the OS to **not sleep/hibernate**. Your **display monitor can still sleep** normally if your power plan allows it.
 * When you **quit** (or when an **auto-quit** timer fires), the app **releases** the request and your PC can sleep again.
