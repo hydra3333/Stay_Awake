@@ -22305,7 +22305,7 @@ def main():
         try:
             target_epoch = parse_until_to_epoch(args.until_timestamp)
         except ValueError as e:
-            print(f"Invalid --until value: {e}"), flush=True)
+            print(f"Invalid --until value: {e}", flush=True)
             sys.exit(2)
         now_ceil = math.ceil(time.time())
         secs = int(target_epoch - now_ceil)
