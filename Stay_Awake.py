@@ -1,98 +1,24 @@
 #!/usr/bin/env python3
-
-# Stay_Awake System Tray Application
-# Keeps system awake, runs in system tray with minimal GUI
+# =============================================================================
+# Stay_Awake — simple Windows tray app to keep the PC awake, with minimal GUI.
 #
-# .pyw runs with pythonw.exe (no console window).
-# pythonw.exe doesn't create a console window
-# Drawback: You lose all the print() messages, but the app works silently.
+# Summary
+# -------
+# - Keeps the machine awake while running (via wakepy).
+# - Optional auto-quit timer by duration (--for) or by local wall-clock time (--until).
+# - Small Tk window for status + image; system tray icon with right-click menu.
+# - Native/vanilla look for buttons; image auto-scales to fit.
 #
-# ------------------------------------------------------------------------------
-# CLI summary:
-#   --icon "PATH"  -> highest priority image source (PNG/JPG/JPEG/WEBP/BMP/GIF/ICO)
-#   Fallbacks      -> base64 -> Stay_Awake_icon.* (ordered list) -> drawn glyph
-#   All images are auto-scaled to fit (<= MAX_DISPLAY_PX), aspect ratio preserved.
-# ------------------------------------------------------------------------------
+# Power Management
+# ----------------
+# - On start: acquires a wake lock (via wakepy) to prevent sleep.
+# - On quit: releases the lock and restores normal power management.
+# - Useful diagnostics: in a console, run `powercfg -requests` to see any blockers.
 #
-# ------------------------------------------------------------------------------
-# Stay_Awake – Requirements / Behavior Spec (v1.3.2)
-# ------------------------------------------------------------------------------
-# Purpose
-#   Keep the system awake with a minimal GUI and a system-tray icon.
-#
-# CLI
-#   python Stay_Awake.py [--icon "PATH"]
-#     --icon "PATH"  Optional quoted path to an image file used for both
-#                    the tray icon and the window image.
-#                    Relative paths are resolved from the current working dir.
-#
-# Image Source Priority (first usable wins)
-#   1) CLI override:      --icon "PATH"
-#   2) Internal base64:   EYE_IMAGE_BASE64 (if non-empty and decodes)
-#   3) File fallbacks (in the script folder, in this order):
-#        Stay_Awake_icon.png
-#        Stay_Awake_icon.jpg
-#        Stay_Awake_icon.jpeg
-#        Stay_Awake_icon.webp
-#        Stay_Awake_icon.bmp
-#        Stay_Awake_icon.gif
-#        Stay_Awake_icon.ico
-#   4) Drawn fallback:    a simple vector-like Eye glyph (never crashes)
-#
-# Supported Image Formats
-#   PNG, JPG/JPEG, WEBP, BMP, GIF, ICO (loaded via Pillow; alpha supported).
-#
-# Image Scaling (non-square friendly)
-#   - The window image is proportionally resized so the longest side <= MAX_DISPLAY_PX.
-#   - MAX_DISPLAY_PX is an internal constant (default 512) – change if needed.
-#   - The tray icon is scaled down to ~64 px (with a tiny transparent border to
-#     avoid edge clipping in some tray implementations).
-#
-# Main Window (native/vanilla look via ttk)
-#   - Title: "Stay_Awake"
-#   - Layout: centered image (auto-scaled), horizontal separator, buttons along
-#     the bottom.
-#   - Buttons:
-#       • Minimize to System Tray  -> hides the main window (app keeps running)
-#       • About                    -> opens modal About dialog
-#       • Quit                     -> exits the app gracefully
-#   - Window close (X): exits the app gracefully (same as Quit).
-#
-# About Window (modal dialog)
-#   - Shown centered, transient to the main window, grab-set (modal).
-#   - Displays a smaller, auto-scaled version of the image, product text, and
-#     OK/Minimize buttons.
-#   - OK:        closes the About window.
-#   - Minimize:  behaves like the window X (closes the About window).
-#   - Window close (X): closes the About window.
-#   - Keyboard:  Esc/Enter both close the About window.
-#
-# System Tray
-#   - Right-click menu: Show Window (default action), About, Quit.
-#   - Default (double-click/left): Show Window (bring main window to front).
-#
-# Keep-Awake Lifecycle
-#   - Uses wakepy.keep.running() context to inhibit system sleep/hibernation.
-#   - On Quit or process signals (SIGINT/SIGTERM), the context is exited and
-#     normal power management is restored.
-#
-# Error Handling / Robustness
-#   - Missing/bad image sources never crash the app: it falls back to a simple
-#     drawn glyph.
-#   - Base64 decode errors are logged and skipped (fallback continues).
-#   - All exits attempt to clean up the keep-awake context and tray icon.
-#
-# Look & Feel
-#   - Uses ttk widgets for native/vanilla Windows styling.
-#   - Buttons are placed at the bottom; no “gaudy” manual colors.
-#   - Windows are centered on open.
-#
-# Configuration Knobs
-#   - MAX_DISPLAY_PX (default 512): max long-side for displayed image.
-#   - EYE_IMAGE_BASE64: paste your base64 here (leave empty to prefer files/CLI).
-#   - IMAGE_CANDIDATES: ordered list of fallback filenames (in script dir).
-#
-# Dependencies
+# OS & Python & Dependencies
+# --------------------------
+# Tested on Windows 11.
+# Dependencies:
 #   - Python 3.13+ recommended
 #   - pip install these:
 #         pip install wakepy --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
@@ -100,40 +26,225 @@
 #         pip install Pillow --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
 #         pip install pyinstaller --no-cache-dir --upgrade --check-build-dependencies --upgrade-strategy eager --verbose
 #
-# Packaging / Notes
-#   - Running as .pyw uses pythonw.exe (no console) on Windows.
-#   - Some tray environments render transparency slightly differently; a 1–2 px
-#     transparent border is added around the tray bitmap to avoid clipping.
+# Notes
+# -----
+# - Renaming the source .py to .pyw and running that (or using pythonw.exe) hides the console window.
+# - Some tray environments clip edges.
 #
-# Building  (Build Stay_Awake.exe with no console window)
-#   rmdir /s /q .\dist
-#   rmdir /s /q .\build
-#   pyinstaller --clean --onefile --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
-#   copy /Y ".\dist\Stay_Awake.exe" ".\Stay_Awake.exe"
+# Command-line Usage
+# ------------------
+#   Stay_Awake.py [--icon PATH] [--for DURATION | --until "YYYY-MM-DD HH:MM:SS"]
 #
-# Build Stay_Awake 'onedir' with no console window
-#   rmdir /s /q .\dist
-#   rmdir /s /q .\build
-#   pyinstaller --clean --onedir --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
-#   rem Place optional icon images next to the EXE (inside the app folder):
-#   copy /Y Stay_Awake_icon.* ".\dist\Stay_Awake\"
+# --icon PATH
+#   - Overrides the built-in image for both the window and tray icon.
+#   - Supports PNG/JPG/JPEG/WEBP/BMP/GIF/ICO.
+#   - Image Source Priority (first usable wins)
+#       1) CLI override:      --icon "PATH"
+#       2) Internal base64:   EYE_IMAGE_BASE64 (if non-empty and decodes)
+#       3) File fallbacks (in the script folder, in this order):
+#           Stay_Awake_icon.png
+#           Stay_Awake_icon.jpg
+#           Stay_Awake_icon.jpeg
+#           Stay_Awake_icon.webp
+#           Stay_Awake_icon.bmp
+#           Stay_Awake_icon.gif
+#           Stay_Awake_icon.ico
+#   - Images/icons are made Square using outer edge pixel row/column replication
 #
-# Zip (PowerShell 5.1 compatible)
+# --for DURATION
+#   - Auto-quit after a duration. Examples:
+#       --for 45m         (45 minutes)
+#       --for 2h          (2 hours)
+#       --for 1h30m       (1 hour 30 minutes)
+#       --for 3600s       (3600 seconds)
+#       --for 3d4h5s      (3 days, 4 hours, 5 seconds)
+#       --for 0           (disable auto-quit)
+#   - Bounds enforced: at least 10 seconds; at most 366 days.
+#   - Implementation detail: we compute a target wall-time (now rounded up to the next
+#     whole second + parsed duration) and then re-ceil again right before arming the timer
+#     for best alignment.
+#
+# --until "YYYY-MM-DD HH:MM:SS"
+#   - Auto-quit at a specific local wall-clock time (24h clock).
+#   - Relaxed parsing: allows extra spaces and 1–2 digit month/day/hour/min/sec, e.g.:
+#       "2025-01-02 23:22:21"
+#       "2025- 1- 2 03:02:01"
+#       "2025-1-2 3:2:1"
+#   - Strict validation:
+#       * Invalid dates/times (e.g., 2025-02-31) are rejected.
+#       * DST edge cases are handled with a two-pass local-time check:
+#           - Nonexistent local times (spring-forward gap) → error.
+#           - Ambiguous local times (fall-back overlap)    → error.
+#   - Bounds enforced: at least 10 seconds into the future; at most 366 days.
+#   - Implementation detail: we convert the target to a local epoch, then re-ceil
+#     from “now” again immediately before arming the timer to minimize drift.
+#
+# Mutually exclusive:
+#   --for and --until cannot be used together (the CLI enforces this).
+#
+# Window & Tray Behavior
+# ----------------------
+# - Main window shows:
+#     * Scaled image (max size = MAX_DISPLAY_PX, preserves aspect ratio).
+#     * Blurb text.
+#     * Buttons: “Minimize to System Tray” and “Quit”.
+#     * If auto-quit is active:
+#         - ETA line (“Auto-quit at: …”)
+#         - Countdown line (“Time remaining: DDDd HH:MM:SS”)
+#         - Cadence line (“Timer update cadence: HH:MM:SS” — only updates when cadence changes)
+# - Title-bar minimize (“_”) maps to “minimize to system tray”.
+# - Right-click tray icon menu includes “Show Window” / “Hide Window” / “Quit”.
+# - Window close (“X”) performs a graceful full exit.
+#
+# Countdown Cadence & CPU Friendliness
+# ------------------------------------
+# - Update cadence adapts to remaining time (seconds):
+#     > 1h:  every 10 min (example; see COUNTDOWN_CADENCE)
+#     > 30m: every 5 min
+#     > 15m: every 1 min
+#     > 10m: every 30 s
+#     >  5m: every 15 s
+#     >  2m: every 10 s
+#     >  1m: every 5  s
+#     > 30s: every 2  s
+#     else:  every 1  s
+#   (Exact values are controlled by COUNTDOWN_CADENCE in code.)
+# - When the window is not visible, updates are throttled (e.g., to 30s minimum) except
+#   during the final N seconds.
+# - When far from the deadline (e.g., ≥ 60s), the first update is “snapped” to the next
+#   cadence boundary so the countdown appears more “round” to the user
+#   (HARD_CADENCE_SNAP_TO_THRESHOLD_SECONDS controls this).
+#
+# Exit Codes
+# ----------
+# - 0 on normal exit.
+# - 2 on CLI validation errors (bad --for/--until, out of bounds, invalid local time).
+#
+# Maintenance Pointers (search for these names)
+# ---------------------------------------------
+# - Duration parser:              parse_duration_to_seconds()
+# - Local time parser (DST-safe): parse_until_to_epoch()
+# - Auto-quit bounds:             MIN_AUTO_QUIT_SECS / MAX_AUTO_QUIT_SECS
+# - Image sizing cap:             MAX_DISPLAY_PX
+# - Cadence configuration:        COUNTDOWN_CADENCE
+# - Snap-to-boundary threshold:   HARD_CADENCE_SNAP_TO_THRESHOLD_SECONDS
+# - Hidden-window backoff:        HIDDEN_CADENCE_MIN_MS / HIDDEN_BACKOFF_UNTIL_SECS
+#
+# Troubleshooting
+# ---------------
+# - If the tray icon doesn’t appear immediately, give it a second; the icon runs on a
+#   background thread. If Windows Explorer had issues, restarting Explorer can help.
+# - If the window doesn’t show an image, ensure a valid image source exists (see sourcing
+#   order above); check console output for “Loading icon from file: …”.
+# - To verify sleep blockers: `powercfg -requests` (look for this process under SYSTEM).
+#
+# Packaging (PyInstaller)
+# -----------------------
+#       set "root=%~dp0"
+#       set "targetIcon=%root%Stay_Awake_icon.ico"
+#       set "targetIcon_option="
+#       set "sourceImage="
+#       del /f "!targetIcon!" >NUL 2>&1
+#       REM Check for image files in order of preference
+#       for %%f in ("Stay_Awake_icon.png" "Stay_Awake_icon.jpg" "Stay_Awake_icon.jpeg" "Stay_Awake_icon.webp" "Stay_Awake_icon.bmp" "Stay_Awake_icon.gif") do (
+#           if exist "%root%%%~f" (
+#               set "sourceImage=%root%%%~f"
+#               echo Create ICON from PNG: Found source image: !sourceImage!
+#               goto :found_image
+#           )
+#       )
+#       :found_image
+#
+# Either A. One-file EXE (no console window):
+#       :build_onefile
+#       rmdir /s /q .\dist  >NUL 2>&1
+#       rmdir /s /q .\build >NUL 2>&1
+#       del /f      .\Stay_Awake.spec >NUL 2>&1
+#       del /f      .\Stay_Awake.zip  >NUL 2>&1
+#       if exist "!targetIcon!" (
+#           echo.
+#           echo pyinstaller --clean --onefile --windowed --noconsole --icon "!targetIcon!" --name "Stay_Awake" Stay_Awake.py
+#           echo.
+#           pyinstaller --clean --onefile --windowed --noconsole --icon "!targetIcon!" --name "Stay_Awake" Stay_Awake.py
+#           echo.
+#           echo ********** pyinstaller created onefile Stay_Awake WITH system tray .ico icon file
+#           echo.
+#       ) ELSE (
+#           echo.
+#           echo pyinstaller --clean --onefile --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
+#           pyinstaller --clean --onefile --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
+#           echo.
+#           echo ********** pyinstaller created onefile Stay_Awake WITHOUT system tray .ico icon file
+#           echo.
+#       )
+#       REM Place optional icon images next to the EXE (inside the app folder):
+#       COPY /Y "!sourceImage!" ".\dist\" >NUL 2>&1
+#       COPY /Y "!targetIcon!" ".\dist\" >NUL 2>&1
+#       REM ---------------------------------------------------------------------------
+#       REM Zip the onefile output (PowerShell 5.1 compatible)
+#       REM   - Using the contents of distso the ZIP root is the app itself
+#       REM ---------------------------------------------------------------------------
+#       set "target_zip_file=.\Stay_Awake_onefile.zip"
+#       echo powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive  -Command "Compress-Archive -Path '.\dist\*' -DestinationPath '!target_zip_file!' -Force -CompressionLevel Optimal" 
+#       powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive  -Command "Compress-Archive -Path '.\dist\*' -DestinationPath '!target_zip_file!' -Force -CompressionLevel Optimal" 
+#       set "ERR=%ERRORLEVEL%"
+#       echo ==== onefile Compress-Archive exit code: %ERR%
+#
+# Or B. One-dir app folder (no console window):
+#       :build_onedir
+#       rmdir /s /q .\dist  >NUL 2>&1
+#       rmdir /s /q .\build >NUL 2>&1
+#       del /f      .\Stay_Awake.spec >NUL 2>&1
+#       del /f      .\Stay_Awake.zip  >NUL 2>&1
+#       if exist "!targetIcon!" (
+#           echo.
+#           echo pyinstaller --clean --onedir --windowed --noconsole --icon "!targetIcon!" --name "Stay_Awake" Stay_Awake.py
+#           echo.
+#           pyinstaller --clean --onedir --windowed --noconsole --icon "!targetIcon!" --name "Stay_Awake" Stay_Awake.py
+#           echo.
+#           echo ********** pyinstaller created onedir Stay_Awake WITH system tray .ico icon file
+#           echo.
+#       ) ELSE (
+#           echo.
+#           echo pyinstaller --clean --onedir --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
+#           echo.
+#           pyinstaller --clean --onedir --windowed --noconsole --name "Stay_Awake" Stay_Awake.py
+#           echo.
+#           echo ********** pyinstaller created onedir Stay_Awake WITHOUT system tray .ico icon file
+#           echo.
+#       )
+#       REM Place optional icon images next to the EXE (inside the app folder):
+#       COPY /Y "!sourceImage!" ".\dist\Stay_Awake\" >NUL 2>&1
+#       COPY /Y "!targetIcon!"  ".\dist\Stay_Awake\" >NUL 2>&1
+#       REM ---------------------------------------------------------------------------
+#       REM Zip the onedir output (PowerShell 5.1 compatible)
+#       REM   - Using the contents of dist\Stay_Awake so the ZIP root is the app itself
+#       REM ---------------------------------------------------------------------------
+#       set "target_zip_file=.\Stay_Awake_onedir.zip"
+#       echo powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -Command "Compress-Archive -Path '.\dist\Stay_Awake\*' -DestinationPath '!target_zip_file!' -Force -CompressionLevel Optimal"
+#       powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -Command "Compress-Archive -Path '.\dist\Stay_Awake\*' -DestinationPath '!target_zip_file!' -Force -CompressionLevel Optimal"
+#       set "ERR=%ERRORLEVEL%"
+#       echo ==== onedir Compress-Archive exit code: %ERR%
+#
+# Sundry Notes
+# ------------
+# Zipping the p[yinstaller built application (PowerShell 5.1 compatible)
 #   # ZIP contains the CONTENTS of dist (no top-level 'dist' folder inside):
 #   powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -WindowStyle Hidden -Command "Compress-Archive -Path '.\dist\*' -DestinationPath '.\Stay_Awake.zip' -Force -CompressionLevel Optimal"
 #
-# Zip (PowerShell 7+ only; strongest compression)
+# Zipping the p[yinstaller built application (PowerShell 7+ only; strongest compression)
 #   # ZIP contains the CONTENTS of dist (no top-level 'dist' folder inside):
 #   pwsh -NoLogo -NoProfile -Command "Compress-Archive -Path '.\dist\*' -DestinationPath '.\Stay_Awake.zip' -Force -CompressionLevel SmallestSize"
 #
-# Zip (include 'dist' as a top-level folder inside the ZIP)
+# Zipping the p[yinstaller built application (include 'dist' as a top-level folder inside the ZIP; note '.\dist' rather than '.\dist\*')
 #   powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -NonInteractive -WindowStyle Hidden -Command "Compress-Archive -Path '.\dist' -DestinationPath '.\Stay_Awake.zip' -Force -CompressionLevel Optimal"
 #
-# ------------------------------------------------------------------------------ 
+# =============================================================================
 
 import sys
 import os
 import time
+from datetime import datetime
 import ctypes
 import threading
 import tkinter as tk
@@ -148,7 +259,9 @@ import base64
 import io
 from pathlib import Path
 import argparse
-import re  # for --for duration parsing
+import re  # for --for and --until duration parsing
+import math
+import traceback
 
 # --------------------------------------------------------------------
 # Config
@@ -163,7 +276,26 @@ APP_BLURB = (
     "Closing this app re-allows sleep & hibernation."
 )
 
-_DURATION_TOKEN = re.compile(r'\s*(\d+)\s*([dhmsDHMS]?)')
+# For decoding --for days minutes, seconds:
+_RE_DURATION_TOKEN = re.compile(r'\s*(\d+)\s*([dhmsDHMS]?)')
+
+# For decoding --until relaxed local timestamp:
+# Accepts: "YYYY-MM-DD HH:MM:SS" with optional spaces and 1–2 digit M/D/h/m/s.
+# Examples:
+#   2025-01-02 23:22:21
+#   2025- 1- 2 03:02:01
+#   2025-1-2 3:2:1
+_RE_UNTIL_TOKEN = re.compile(
+    r"""^\s*
+        (\d{4})\s*-\s*       # year
+        (\d{1,2})\s*-\s*     # month (1..12)
+        (\d{1,2})\s+         # day   (1..31; validated later)
+        (\d{1,2})\s*:\s*     # hour  (0..23)
+        (\d{1,2})\s*:\s*     # min   (0..59)
+        (\d{1,2})\s*         # sec   (0..59)
+        $""",
+    re.VERBOSE,
+)
 
 # Candidate image file names (same folder as this script/EXE) in this order
 IMAGE_CANDIDATES = [
@@ -191,19 +323,28 @@ COUNTDOWN_CADENCE: list[tuple[int, int]] = [
     ( 30,  2_000),  # > 30 sec  → update every 2s
     (-1,  1_000),   # ≤ 30 sec  → update every 1s (catch-all)
 ]
+#
 #for threshold, cadence in COUNTDOWN_CADENCE:
-#    print(f"[DEBUG] COUNTDOWN_CADENCE (lower bound seconds={threshold}, update frequency seconds)={cadence/1000}")
+#    print(f"[DEBUG] COUNTDOWN_CADENCE (lower bound seconds={threshold}, update frequency seconds)={cadence/1000}", flush=True)
 # When the window isn't viewable, throttle updates to at least this interval,
 # except during the final N seconds (so short runs still tick fast near the end).
 HIDDEN_CADENCE_MIN_MS        = 60_000
 HIDDEN_BACKOFF_UNTIL_SECS    = 60
+#
 # if time_remaining >= HARD_CADENCE_SNAP_TO_THRESHOLD_SECONDS and seconds of time_remaining is not at the multiple of an update interval for the current cadence,
 # then fire appropriately so timer next appears at a multiple of an update interval for the current cadence
 HARD_CADENCE_SNAP_TO_THRESHOLD_SECONDS = 60 
+#
+# Bounds applied to BOTH --for and --until:
+# - must be at least MIN_AUTO_QUIT_SECS seconds in the future
+# - must be no more than MAX_AUTO_QUIT_SECS seconds in the future
+MIN_AUTO_QUIT_SECS = 10                     # at least 10s
+MAX_AUTO_QUIT_SECS = 366 * 24 * 60 * 60     # ≤ 366 days
 
 # --------------------------------------------------------------------
 # PASTE YOUR BASE64 HERE (leave empty to use file/CLI fallback)
 # --------------------------------------------------------------------
+#EYE_IMAGE_BASE64 = ( "" )
 EYE_IMAGE_BASE64 = (
             "iVBORw0KGgoAAAANSUhEUgAABAAAAANZCAYAAACRO0wyAAEAAElEQVR4nEz9a49kaZadie1jduzqHhGZWdXVJAczgxldPuk/CxAGIDkc/RlBYpMUIAnSTDe7"
             "Km8R7m7Xc+wIz7O2RTYLM12VGeFuds777svaa681/PUf/qdlmde1PexrnpZaHtcaVuuqeallPVY9plo9lprmWw1L1bgda35U1Wpdq8eqHqu5xlrXvDxqtVnX"
@@ -21447,38 +21588,41 @@ EYE_IMAGE_BASE64 = (
         )
 
 class Stay_AwakeTrayApp:
-    def __init__(self, icon_override_path: str | None = None, auto_quit_seconds: int | None = None):
+    def __init__(self, icon_override_path: str | None = None, auto_quit_seconds: int | None = None, auto_quit_target_epoch: float | None = None):
+        # Core state
         self.running = False
         self.icon = None
         self.main_window = None
         self.keep_awake_context = None
         self.window_visible = True
-
-        # Tk image caches (prevent GC) and PIL caches
+    
+        # Tk/PIL caches to prevent GC & repeated work
         self._cached_photo_main = None
-        self._pil_base_image = None   # cache for original PIL image
-        self._tray_icon_image = None  # cache for small tray PIL image
-
-        # Optional CLI override path
+        self._pil_base_image = None   # original PIL image cache
+        self._tray_icon_image = None  # small tray PIL image cache
+    
+        # CLI image override
         self.icon_override_path = icon_override_path
-        
-        # Optional CLI quit timer
-        self.auto_quit_seconds = auto_quit_seconds
-        self._auto_quit_timer = None
-
-        # NEW: used for display / countdown
-        self.auto_quit_deadline = None      # monotonic timestamp (for precise countdown)
-        self.auto_quit_walltime = None      # time.time() timestamp (for human ETA)
-        self._eta_value = None
-        self._countdown_value = None
-        self._countdown_after_id = None
-        self._cadence_value = None
-        self._last_cadence_s = None  # last cadence displayed (seconds)
-
-        # register signals and cleanup
+    
+        # Auto-quit settings
+        self.auto_quit_seconds = auto_quit_seconds               # (--for) duration in seconds, or None
+        self.auto_quit_target_epoch = auto_quit_target_epoch     # (--until) local epoch seconds, or None
+        self._auto_quit_timer = None                             # threading.Timer handle
+    
+        # Countdown / ETA display state
+        self.auto_quit_deadline = None       # monotonic() timestamp when we’ll quit (float seconds)
+        self.auto_quit_walltime = None       # wall-time (time.time()) when we’ll quit (for “Auto-quit at:”)
+        self._eta_value = None               # ttk.Label for ETA (value cell)
+        self._countdown_value = None         # ttk.Label for “Time remaining” (value cell)
+        self._countdown_after_id = None      # Tk after() handle so we can cancel/reschedule
+        self._cadence_value = None           # ttk.Label for “Timer update frequency”
+        self._last_cadence_s = None          # last cadence shown (int seconds), to avoid churn
+    
+        # Signal/cleanup hooks
         atexit.register(self.cleanup)
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
+
 
     # -------------------- Paths / images --------------------
 
@@ -21500,7 +21644,7 @@ class Stay_AwakeTrayApp:
         try:
             return Image.open(io.BytesIO(base64.b64decode(raw))).convert("RGBA")
         except Exception as e:
-            print(f"Base64 image decode failed, will try file fallback: {e}")
+            print(f"Base64 image decode failed, will try file fallback: {e}", flush=True)
             return None
 
     def _try_load_override_file(self):
@@ -21513,12 +21657,12 @@ class Stay_AwakeTrayApp:
             if not p.is_absolute():
                 p = (Path.cwd() / p).resolve()
             if p.exists():
-                print(f"Loading icon from CLI override: {p}")
+                print(f"Loading icon from CLI override: {p}", flush=True)
                 return Image.open(p).convert("RGBA")
             else:
-                print(f"CLI override not found: {p}")
+                print(f"CLI override not found: {p}", flush=True)
         except Exception as e:
-            print(f"Failed to load CLI override image: {e}")
+            print(f"Failed to load CLI override image: {e}", flush=True)
         return None
 
     def _try_load_from_files(self):
@@ -21528,10 +21672,10 @@ class Stay_AwakeTrayApp:
             p = folder / name
             if p.exists():
                 try:
-                    print(f"Loading icon from file: {p.name}")
+                    print(f"Loading icon from file: {p.name}", flush=True)
                     return Image.open(p).convert("RGBA")
                 except Exception as e:
-                    print(f"Failed to load {p.name}: {e}")
+                    print(f"Failed to load {p.name}: {e}", flush=True)
         return None
 
     def _fallback_draw_eye(self, size=(640, 490)):
@@ -21561,13 +21705,14 @@ class Stay_AwakeTrayApp:
         """
         if self._pil_base_image is not None:
             return self._pil_base_image
-        img = self._try_load_override_file()
+        #
+        img = self._try_load_override_file()    # --icon
         if img is None:
-            img = self._try_decode_base64()
+            img = self._try_decode_base64()     # internal base64 image
         if img is None:
-            img = self._try_load_from_files()
+            img = self._try_load_from_files()   # Stay_Awake_icon.* next to the EXE/script (PNG/JPG/JPEG/WEBP/BMP/GIF/ICO)
         if img is None:
-            img = self._fallback_draw_eye()
+            img = self._fallback_draw_eye()     # A small drawn fallback glyph
         self._pil_base_image = img.convert("RGBA")
         return self._pil_base_image
 
@@ -21713,7 +21858,7 @@ class Stay_AwakeTrayApp:
             self.keep_awake_context = keep.running()
             self.keep_awake_context.__enter__()
             self.running = True
-            print("Stay_Awake activated")
+            print("Stay_Awake activated", flush=True)
         except Exception as e:
             if self.main_window:
                 messagebox.showerror("Error", f"Failed to activate Stay_Awake: {e}")
@@ -21735,12 +21880,12 @@ class Stay_AwakeTrayApp:
                 self._auto_quit_timer = None
         # 2) restore normal power management (wakepy context exit)
         if self.running and self.keep_awake_context:
-            print("Cleaning up - restoring normal power management.")
+            print("Cleaning up - restoring normal power management.", flush=True)
             try:
                 self.keep_awake_context.__exit__(None, None, None)
-                print("Normal power management restored")
+                print("Normal power management restored", flush=True)
             except Exception as e:
-                print(f"Error during cleanup: {e}")
+                print(f"Error during cleanup: {e}", flush=True)
             finally:
                 self.running = False
                 self.keep_awake_context = None
@@ -21768,7 +21913,7 @@ class Stay_AwakeTrayApp:
                 self._countdown_after_id = None
 
     def signal_handler(self, signum, frame):
-        print(f"Received signal {signum}, cleaning up.")
+        print(f"Received signal {signum}, cleaning up.", flush=True)
         self.cleanup()
         if self.icon:
             try:
@@ -21780,7 +21925,7 @@ class Stay_AwakeTrayApp:
 
     def quit_application(self, icon, item):
         def _impl():
-            print("User requested quit")
+            print("User requested quit", flush=True)
             self.cleanup()
             if self.main_window:
                 try:
@@ -21802,27 +21947,64 @@ class Stay_AwakeTrayApp:
 
     # -------------------- Auto-quit with ETA and Countdown --------------------
 
-    def _start_auto_quit_timer(self, seconds: int):
+    def _start_auto_quit_timer(self, seconds: int) -> None:
+        """
+        Start a one-shot timer that will quit the app after 'seconds'.
+        Sets:
+          - auto_quit_deadline: precise monotonic deadline for countdown math
+          - auto_quit_walltime: human-readable wall-clock ETA (time.time()-based)
+        If auto_quit_target_epoch is known (both --until and --for can set it),
+        use that exact target for the ETA so the window matches the console log.
+        Otherwise, fall back to ceil(time.time()) + seconds to align to whole seconds.
+        """
+        #
+        # !!!!!!!!!!!!!!! NOTE NOTE NOTE IMPORTANT IMPORTANT IMPORTANT !!!!!!!!!!!!!!!
+        # If we ever change UI creation order, 
+        #   remember that the ETA label pulls from self.auto_quit_walltime
+        # which we *set here* ...
+        #
+        # ... so ALWAYS keep the timer-first sequence.
+        # !!!!!!!!!!!!!!! NOTE NOTE NOTE IMPORTANT IMPORTANT IMPORTANT !!!!!!!!!!!!!!!
+        #
         if not seconds or seconds <= 0:
             return
-        # record both times for ETA / countdown features
+        # For countdown math (robust against system clock changes)
         self.auto_quit_deadline = time.monotonic() + seconds
-        self.auto_quit_walltime = time.time() + seconds
-        def _fire():
-            print(f"Auto-quit timer expired after {seconds}s; quitting…")
+        # For user-visible ETA label
+        if self.auto_quit_target_epoch is not None:
+            # Use the exact target epoch computed during CLI parsing
+            self.auto_quit_walltime = self.auto_quit_target_epoch
+        else:
+            # Fallback path (no explicit target): keep ETA on whole-second boundary
+            self.auto_quit_walltime = math.ceil(time.time()) + seconds
+        # Cancel any previous timer before creating a new one
+        if getattr(self, "_auto_quit_timer", None):
+            try:
+                self._auto_quit_timer.cancel()
+            except Exception:
+                pass
+            finally:
+                self._auto_quit_timer = None
+        def _on_timeout():
+            # This runs in the timer thread.
+            print(f"Auto-quit timer expired after {int(seconds)}s; quitting…", flush=True)
             try:
                 if self.main_window and self.main_window.winfo_exists():
-                    # schedule quit on the Tk thread
+                    # Marshal shutdown onto the Tk main thread; safest for any UI work. (schedule quit on the Tk thread)
                     self.main_window.after(0, lambda: self.quit_application(None, None))
                 else:
                     self.quit_application(None, None)
             except Exception:
-                import os
-                os._exit(0)
-        t = threading.Timer(seconds, _fire)
+                # As a last resort, avoid hanging forever if the GUI/thread state is odd.
+                try:
+                    os._exit(0)
+                except Exception:
+                    pass
+        t = threading.Timer(seconds, _on_timeout)
+        # Setting daemon True so the timer thread won't block interpreter shutdown in edge cases
         t.daemon = True
-        t.start()
         self._auto_quit_timer = t
+        t.start()
 
     def _format_dhms(self, total_seconds: int) -> str:
         # DDDd hh:mm:ss (omit days if 0)
@@ -21874,7 +22056,7 @@ class Stay_AwakeTrayApp:
                 # only snap sooner than the regular cadence
                 if snap_ms < next_ms:
                     next_ms = snap_ms
-                #print(f"[DEBUG][SNAP to next cadence boundary][tick] rem={rem}s next_ms={next_ms}")
+                #print(f"[DEBUG][SNAP to next cadence boundary][tick] rem={rem}s next_ms={next_ms}", flush=True)
         # If not visible, back off to a larger interval unless we're in the last N seconds
         # (define HIDDEN_CADENCE_MIN_MS and HIDDEN_BACKOFF_UNTIL_SECS at module scope if you use this)
         if not visible and rem > HIDDEN_BACKOFF_UNTIL_SECS and next_ms < HIDDEN_CADENCE_MIN_MS:
@@ -21888,7 +22070,7 @@ class Stay_AwakeTrayApp:
                 self._last_cadence_s = cad_s
                 #print(f"[DEBUG][tick] rem={rem}s next_ms={next_ms} "
                 #    f"countdown='{self._countdown_value.cget('text') if self._countdown_value and self._countdown_value.winfo_exists() else None}' "
-                #    f"cadence='{self._cadence_value.cget('text') if self._cadence_value and self._cadence_value.winfo_exists() else None}'")
+                #    f"cadence='{self._cadence_value.cget('text') if self._cadence_value and self._cadence_value.winfo_exists() else None}'", flush=True)
         #---
         # Cancel any previously scheduled tick before scheduling the next one
         if self._countdown_after_id:
@@ -21948,11 +22130,11 @@ class Stay_AwakeTrayApp:
             dpi = ctypes.windll.user32.GetDpiForSystem()  # Win10/11 ... let it crash if can't get the DPI
             if not dpi:
                 dpi = default_DPI
-                print(f"Unable to determine Display Monitor DPI, defaulting to {default_DPI}")
+                print(f"Unable to determine Display Monitor DPI, defaulting to {default_DPI}", flush=True)
             system_tray_icon_size = max(16, min(64, int(round(16 * dpi / windows_baseline_DPI)))) 
         except Exception:
             system_tray_icon_size = default_system_tray_icon_size
-            print(f"Unable to set system tray icon size based on Display Monitor DPI, defaulting to {default_system_tray_icon_size}")
+            print(f"Unable to set system tray icon size based on Display Monitor DPI, defaulting to {default_system_tray_icon_size}", flush=True)
         if self._tray_icon_image is None:
             pil = self._load_eye_image()
             # Make the tray source square using edge-replication stretch pads (no subject distortion)
@@ -21974,10 +22156,30 @@ class Stay_AwakeTrayApp:
         self.icon.run()
 
     def run(self):
+        """
+        Start the wake lock, create UI, and enter the main loop.
+        If a target epoch was provided (from --until or --for), recompute the
+        seconds from NOW (rounded up via ceil on the difference) just before
+        arming the timer to maximize accuracy and to keep the window's ETA
+        in sync with the console print.
+        """
         self.start_Stay_Awake()
-        if self.auto_quit_seconds and (self.auto_quit_seconds > 0):
-            self._start_auto_quit_timer(self.auto_quit_seconds)
+        # Determine seconds to run (final re-ceil right before arming the timer)
+        secs_to_run = self.auto_quit_seconds
+        if self.auto_quit_target_epoch is not None:
+            # Use ceil on the difference so we never fire early
+            secs_to_run = int(math.ceil(self.auto_quit_target_epoch - time.time()))
+            if secs_to_run <= 0:
+                print("Auto-quit reached during startup; quitting…", flush=True)
+                self.quit_application(None, None)
+                return
+        # Arm the one-shot auto-quit timer if requested (do this BEFORE building the window)
+        # so auto_quit_walltime/deadline are set in time for the ETA/countdown labels.
+        if secs_to_run and secs_to_run > 0:
+            self._start_auto_quit_timer(secs_to_run)
+        # Build the window after timing is known (so ETA/countdown/cadence labels appear immediately)
         self.create_main_window()
+        # Tray icon in a background thread; Tk loop in main thread
         tray_thread = threading.Thread(target=self.create_tray_icon, daemon=True)
         tray_thread.start()
         self.main_window.mainloop()
@@ -21995,7 +22197,7 @@ def parse_duration_to_seconds(text: str) -> int:
     total = 0
     last_end = 0
     any_match = False
-    for m in _DURATION_TOKEN.finditer(s):
+    for m in _RE_DURATION_TOKEN.finditer(s):
         # Disallow non-space junk between tokens
         if m.start() != last_end and s[last_end:m.start()].strip():
             raise ValueError(f"Invalid duration syntax near: {s[last_end:m.start()]!r}")
@@ -22021,39 +22223,161 @@ def parse_duration_to_seconds(text: str) -> int:
         raise ValueError("Duration must be >= 0")
     return total
 
-def main():
-                                       
-    parser = argparse.ArgumentParser(description="Stay_Awake system tray tool")
-    parser.add_argument("--icon", dest="icon_path", metavar="PATH", help="Path to an image file (PNG/JPG/JPEG/WEBP/BMP/GIF/ICO) used for the app icon & window image.")
-    parser.add_argument("--for", dest="for_duration", metavar="DURATION", help="Auto-quit after duration (e.g., 45m, 2h, 1h30m, 3600s). Bare number = minutes. 0 is no timeout")
-    args = parser.parse_args()
+def parse_until_to_epoch(text: str) -> float:
+    """
+    Parse a relaxed local timestamp like '2025-01-02 23:22:21', '2025- 1- 2 03:02:01',
+    or '2025-1-2 3:2:1' into a *local* epoch seconds (float), with robust DST handling.
 
-    auto_secs = None
-    if args.for_duration:
-        try:
-            auto_secs = parse_duration_to_seconds(args.for_duration)
-            if (auto_secs > 0):
-                d, r = divmod(auto_secs, 86400); h, r = divmod(r,3600); m, s = divmod(r,60)
-                pretty = (f"{d}d {h:02d}:{m:02d}:{s:02d}") if d else (f"{h:02d}:{m:02d}:{s:02d}")
-                print(f"--for: will auto-quit after {auto_secs} seconds ({pretty}).")
-                #print(f"--for: will auto-quit after {auto_secs} seconds.")
-            else:
-                auto_secs = None
-                print(f"--for 0 seconds specified, auto-quit is disabled.")
-        except ValueError as e:
-            print(f"Invalid --for value: {e}")
-            sys.exit(2)
+    Strategy:
+      1) Regex-parse numbers and build a naive datetime (calendar validation happens here).
+      2) Two-pass mktime round-trip with tm_isdst=0 and tm_isdst=1:
+         - If neither round-trip reproduces the same wall time -> NONEXISTENT local time (spring-forward gap) -> error.
+         - If exactly one round-trips correctly            -> valid; use that epoch.
+         - If both round-trip and epochs differ            -> AMBIGUOUS local time (fall-back overlap) -> error.
+         - If both round-trip and epochs equal             -> normal time; use epoch.
 
+    Raises:
+        ValueError on invalid format, invalid calendar date, out-of-range epoch,
+        or DST edge cases (nonexistent/ambiguous local time).
+    """
+    if not text or not str(text).strip():
+        raise ValueError("Empty --until value")
+    m = _RE_UNTIL_TOKEN.match(text)
+    if not m:
+        raise ValueError(
+            "Invalid --until format. Use: YYYY-MM-DD HH:MM:SS (24h), "
+            "with optional extra spaces and 1–2 digit M/D/h/m/s."
+        )
+    y, mon, d, hh, mm, ss = (int(m.group(i)) for i in range(1, 7))
+    # Calendar validation (e.g., rejects 2025-02-31). This *does not* apply a timezone yet.
     try:
-        app = Stay_AwakeTrayApp(icon_override_path=args.icon_path, auto_quit_seconds=auto_secs)
+        dt = datetime(year=y, month=mon, day=d, hour=hh, minute=mm, second=ss)
+    except ValueError as e:
+        raise ValueError(f"Invalid calendar date/time in --until: {e}") from e
+    # Two-pass mktime round-trip:
+    # Build tm tuples with tm_isdst fixed to 0 or 1 (wday/yday=-1 lets C lib compute them).
+    def _epoch_if_roundtrips(isdst_flag: int) -> float | None:
+        tup = (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, -1, -1, isdst_flag)
+        try:
+            epoch = time.mktime(tup)  # interpret as *local* time with explicit DST hint
+        except (OverflowError, OSError):
+            return None
+        lt = time.localtime(epoch)
+        # Only accept if the wall time truly round-trips to the same civil components.
+        if (lt.tm_year, lt.tm_mon, lt.tm_mday, lt.tm_hour, lt.tm_min, lt.tm_sec) == (
+            dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second
+        ):
+            return float(epoch)
+        return None
+    epoch_std = _epoch_if_roundtrips(0)  # prefer "standard" interpretation
+    epoch_dst = _epoch_if_roundtrips(1)  # prefer "daylight" interpretation
+    if epoch_std is None and epoch_dst is None:
+        # e.g., "spring forward" gap
+        raise ValueError("--until is not a valid local wall-clock time on this system (nonexistent due to DST transition).")
+    if epoch_std is not None and epoch_dst is not None:
+        # Both interpretations are valid but map to *different* instants -> ambiguous fall-back hour
+        if abs(epoch_std - epoch_dst) >= 1.0:
+            raise ValueError("--until is ambiguous (falls in the repeated DST hour). Please choose a different time.")
+        # If they’re somehow equal (rare/no-DST zones), accept either
+        return epoch_std
+    # Exactly one pass valid -> use it
+    return epoch_std if epoch_std is not None else epoch_dst
+
+# -------------------- CLI: main --------------------
+
+def main():
+    # ---------- CLI parsing ----------
+    parser = argparse.ArgumentParser(description="Stay_Awake system tray tool")
+    # --icon rarely used, if ever
+    parser.add_argument("--icon", dest="icon_path", metavar="PATH", help="Path to an image file (PNG/JPG/JPEG/WEBP/BMP/GIF/ICO) used for the app icon & window image.")
+    # Mutually exclusive CLI switches : --for OR --until
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--for", dest="for_duration", metavar="DURATION", help="Auto-quit after duration (e.g., 45m, 2h, 1h30m, 3600s, 3d4h5s). Bare number = minutes. Use 0 to disable.")
+    group.add_argument("--until", dest="until_timestamp", metavar='"YYYY-MM-DD HH:MM:SS"', help='Local wall-time to auto-quit (24h). Example: "2025-01-02 23:22:21". Relaxed spacing and 1–2 digit M/D/h/m/s allowed.')
+    # grab the commandline and parse it
+    args = parser.parse_args()
+    #
+    auto_secs: int | None = None
+    auto_target_epoch: float | None = None
+    #
+    # ----- Handle --until -----
+    if args.until_timestamp:
+        try:
+            target_epoch = parse_until_to_epoch(args.until_timestamp)
+        except ValueError as e:
+            print(f"Invalid --until value: {e}"), flush=True)
+            sys.exit(2)
+        now_ceil = math.ceil(time.time())
+        secs = int(target_epoch - now_ceil)
+        if secs < MIN_AUTO_QUIT_SECS:
+            print(f"--until must be at least {MIN_AUTO_QUIT_SECS} seconds in the future (got {secs}s).", flush=True)
+            sys.exit(2)
+        if secs > MAX_AUTO_QUIT_SECS:
+            days = MAX_AUTO_QUIT_SECS // 86400
+            print(f"--until must be within {days} days from now.", flush=True)
+            sys.exit(2)
+        auto_secs = secs
+        auto_target_epoch = target_epoch
+        d, r = divmod(secs, 86400); h, r = divmod(r, 3600); m, s = divmod(r, 60)
+        pretty = (f"{d}d {h:02d}:{m:02d}:{s:02d}") if d else (f"{h:02d}:{m:02d}:{s:02d}")
+        print(f'--until: will auto-quit at {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(target_epoch))} ({pretty} from now).', flush=True)
+    # ----- Handle --for -----
+    elif args.for_duration:
+        try:
+            secs = parse_duration_to_seconds(args.for_duration)
+        except ValueError as e:
+            print(f"Invalid --for value: {e}", flush=True)
+            sys.exit(2)
+        if secs == 0:
+            # Zero 0 disables auto-quit
+            print("--for: 0 seconds specified, auto-quit is disabled", flush=True)
+            auto_secs = None
+        else:
+            # Enforce bounds
+            if secs < MIN_AUTO_QUIT_SECS:
+                print(f"--for must be at least {MIN_AUTO_QUIT_SECS} seconds (got {secs}s).", flush=True)
+                sys.exit(2)
+            if secs > MAX_AUTO_QUIT_SECS:
+                days = MAX_AUTO_QUIT_SECS // 86400
+                print(f"--for cannot exceed {days} days (got ~{secs/86400:.1f} days).", flush=True)
+                sys.exit(2)
+            # Record the original seconds and compute a target epoch from NOW (rounded up),
+            # so run() can re-ceil precisely just before arming the timer—same as --until.
+            now_ceil = math.ceil(time.time())
+            auto_target_epoch = float(now_ceil + secs)
+            auto_secs = secs
+            d, r = divmod(secs, 86400); h, r = divmod(r, 3600); m, s = divmod(r, 60)
+            pretty = (f"{d}d {h:02d}:{m:02d}:{s:02d}") if d else (f"{h:02d}:{m:02d}:{s:02d}")
+            print(f"--for: will auto-quit after {secs} seconds ({pretty}).", flush=True)
+    # ----- Launch app -----
+    # define app = None BEFORE  the try: so finally can safely reference it even if construction failed early.
+    app = None
+    try:
+        # auto_target_epoch is None unless --for/--until set
+        app = Stay_AwakeTrayApp(
+            icon_override_path=args.icon_path,
+            auto_quit_seconds=auto_secs,
+            auto_quit_target_epoch=auto_target_epoch,
+        )
         app.run()
     except KeyboardInterrupt:
-        print("\nInterrupted by user")
+        # In practice, your SIGINT handler already calls quit; this is a nice message if Ctrl+C occurs pre-GUI.
+        print("\nInterrupted by user", flush=True)
+    except SystemExit:
+        # Let explicit sys.exit() propagate (e.g., CLI validation exits)
+        raise
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        # SHOW traceback if you prefer:
+        traceback.print_exc()
+        print(f"Unexpected error: {e}", flush=True)
     finally:
-        print("Final cleanup...")
-        #sys.exit(0) # quit paths already call sys.exit(0)
+        # Best-effort, idempotent cleanup (safe even if atexit will also run).
+        print("Final cleanup...", flush=True)
+        try:
+            if app is not None:
+                app.cleanup()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     main()
