@@ -464,9 +464,10 @@ class Stay_AwakeTrayApp:
         """
         if self._pil_base_image is not None:
             return self._pil_base_image
-        img = self._try_load_override_file()
+        #
+        img = self._try_load_override_file()    # --icon
         if img is None:
-            img = self._try_decode_base64()
+            img = self._try_decode_base64()     # internal base64 image
         if img is None:
             img = self._try_load_from_files()
         if img is None:
