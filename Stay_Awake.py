@@ -469,9 +469,9 @@ class Stay_AwakeTrayApp:
         if img is None:
             img = self._try_decode_base64()     # internal base64 image
         if img is None:
-            img = self._try_load_from_files()
+            img = self._try_load_from_files()   # Stay_Awake_icon.* next to the EXE/script (PNG/JPG/JPEG/WEBP/BMP/GIF/ICO)
         if img is None:
-            img = self._fallback_draw_eye()
+            img = self._fallback_draw_eye()     # A small drawn fallback glyph
         self._pil_base_image = img.convert("RGBA")
         return self._pil_base_image
 
