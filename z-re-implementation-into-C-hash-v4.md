@@ -274,6 +274,43 @@ of the python version.
   * NotifyIcon in the windows system-tray
   * the app icon (ie when creating a shortcut to the app on the desktop) 
 
+> For clarification, here is some pseudocode to square the image by edge replication:
+```
+loadOriginal(pathOrEmbedded) -> Bitmap src
+if src.Width == src.Height:
+    square = src
+else:
+    size = max(src.W, src.H)
+    square = new Bitmap(size, size, PixelFormat32ARGB)
+    using g = Graphics.FromImage(square):
+        g.InterpolationMode = HighQualityBicubic
+        // draw centered
+        x = (size - src.W) / 2
+        y = (size - src.H) / 2
+        g.DrawImage(src, x, y, src.W, src.H)
+        if src.W < src.H: // portrait → replicate left/right columns
+            // left strip
+            leftSrc = Rectangle(x, y, 1, src.H)
+            leftDst = Rectangle(0, y, x, src.H)
+            g.DrawImage(square, leftDst, leftSrc, Unit.Pixel)
+            // right strip
+            rightSrc = Rectangle(x+src.W-1, y, 1, src.H)
+            rightDst = Rectangle(x+src.W, y, size-(x+src.W), src.H)
+            g.DrawImage(square, rightDst, rightSrc, Unit.Pixel)
+        else: // landscape → replicate top/bottom rows
+            topSrc = Rectangle(x, y, src.W, 1)
+            topDst = Rectangle(x, 0, src.W, y)
+            g.DrawImage(square, topDst, topSrc, Unit.Pixel)
+            botSrc = Rectangle(x, y+src.H-1, src.W, 1)
+            botDst = Rectangle(x, y+src.H, src.W, size-(y+src.H))
+            g.DrawImage(square, botDst, botSrc, Unit.Pixel)
+iconSizes = [16,20,24,32,40,48,64,128,256]
+icons = [ resize(square, s, s) for s in iconSizes ]
+ico = buildIcoContainer(icons, pngFor256=true)
+return square, ico
+```
+
+
 ### 4.4 Stay-Awake logic (Win32)
 
 * Use **`SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)`** when armed, and call again with `ES_CONTINUOUS` on **quit** to clear.
