@@ -76,15 +76,15 @@ jobs:
         run: |
           $App = 'Stay_Awake'
           $Ver = '${{ steps.meta.outputs.version }}'
-          $OneFileZip = "${App}_${Ver}_windows_onefile.zip"
+          #$OneFileZip = "${App}_${Ver}_windows_onefile.zip"
           $OneDirZip  = "${App}_${Ver}_windows_onedir.zip"
           echo "app=$App" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          echo "onefile_zip=$OneFileZip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          #echo "onefile_zip=$OneFileZip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           echo "onedir_zip=$OneDirZip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Show derived names
         run: |
-          Write-Host "onefile_zip:  ${{ steps.names.outputs.onefile_zip }}"
+          #Write-Host "onefile_zip:  ${{ steps.names.outputs.onefile_zip }}"
           Write-Host "onedir_zip :  ${{ steps.names.outputs.onedir_zip }}"
 
       # ---------- ICON from Image for shortcut-to ----------
@@ -153,75 +153,75 @@ jobs:
           }
 
       # ---------- ONEFILE ----------
-      - name: Clean (onefile)
-        run: |
-          if (Test-Path .\dist)  { Remove-Item .\dist  -Recurse -Force -ErrorAction SilentlyContinue }
-          if (Test-Path .\build) { Remove-Item .\build -Recurse -Force -ErrorAction SilentlyContinue }
-          if (Test-Path .\Stay_Awake.spec) { Remove-Item .\Stay_Awake.spec -Force -ErrorAction SilentlyContinue }
-          if (Test-Path .\${{ steps.names.outputs.onefile_zip }}) { Remove-Item .\${{ steps.names.outputs.onefile_zip }} -Force -ErrorAction SilentlyContinue }
-
-      - name: PyInstaller (onefile, windowed, no console)
-        run: |
-          $args = @(
-            '--clean',
-            '--onefile',
-            '--windowed',
-            '--noconsole',
-            '--name', "${{ steps.names.outputs.app }}"
-          )
-          if (Test-Path 'Stay_Awake_icon.ico') {
-            $args += @('--icon', 'Stay_Awake_icon.ico')   # add as two separate args
-          }
-          $args += @('Stay_Awake.py')
-          Write-Host "ONEFILE pyinstaller commandline:"
-          Write-Host "pyinstaller $($args -join ' ')"
-          pyinstaller @args
-          Get-ChildItem .\dist\
-
-      - name: Zip onefile exe + optional icons
-        run: |
-          $exePath = ".\dist\${{ steps.names.outputs.app }}.exe"
-          if (!(Test-Path $exePath)) { throw "Missing expected exe: $exePath" }
-          $root = "${{ github.workspace }}"
-          $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
-          $icons = @()
-          foreach ($n in $names) {
-            $p = Join-Path $root $n
-            if (Test-Path $p) { $icons += (Resolve-Path $p).Path }
-          }
-          if ($icons.Count -gt 0) {
-            Write-Host "Icons found:"; $icons | ForEach-Object { Write-Host " - $_" }
-            $paths = @($exePath) + $icons
-          } else {
-            Write-Host "No icons found at repo root."
-            $paths = @($exePath)
-          }
-          Compress-Archive -Path $paths -DestinationPath ".\${{ steps.names.outputs.onefile_zip }}" -Force -CompressionLevel Optimal
-          #Write-Host "Created $((Resolve-Path .\${{ steps.names.outputs.onefile_zip }}).Path)"
-          $zipPath = ".\${{ steps.names.outputs.onefile_zip }}"
-          Write-Host "Created $((Resolve-Path $zipPath).Path)"
-          
-      - name: List contents of onefile zip
-        run: |
-          $zipPath = ".\${{ steps.names.outputs.onefile_zip }}"
-          Write-Host "ZIP: $zipPath"
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
-          "{0,12} {1,12}  {2}" -f "Size","CompSize","Name"
-          "{0,12} {1,12}  {2}" -f "----","--------","----"
-          foreach ($e in $z.Entries) {
-            "{0,12:N0} {1,12:N0}  {2}" -f $e.Length, $e.CompressedLength, $e.FullName
-          }
-          $z.Dispose()
-          # Presence checks (non-fatal warnings, or switch to 'throw' if you want hard failures)
-          $hasExe   = "${{ steps.names.outputs.app }}.exe"   # <- just a string
-          $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
-          $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
-          $names = $z.Entries | ForEach-Object FullName
-          $z.Dispose()
-          if ($names -notcontains $hasExe) { Write-Warning "EXE not found in onefile zip." }
-          if (-not ($names | Where-Object { $_ -in $iconLike })) { Write-Warning "No icon file found in onefile zip." }
-
+      #- name: Clean (onefile)
+      #  run: |
+      #    if (Test-Path .\dist)  { Remove-Item .\dist  -Recurse -Force -ErrorAction SilentlyContinue }
+      #    if (Test-Path .\build) { Remove-Item .\build -Recurse -Force -ErrorAction SilentlyContinue }
+      #    if (Test-Path .\Stay_Awake.spec) { Remove-Item .\Stay_Awake.spec -Force -ErrorAction SilentlyContinue }
+      #    if (Test-Path .\${{ steps.names.outputs.onefile_zip }}) { Remove-Item .\${{ steps.names.outputs.onefile_zip }} -Force -ErrorAction SilentlyContinue }
+      #
+      #- name: PyInstaller (onefile, windowed, no console)
+      #  run: |
+      #    $args = @(
+      #      '--clean',
+      #      '--onefile',
+      #      '--windowed',
+      #      '--noconsole',
+      #      '--name', "${{ steps.names.outputs.app }}"
+      #    )
+      #    if (Test-Path 'Stay_Awake_icon.ico') {
+      #      $args += @('--icon', 'Stay_Awake_icon.ico')   # add as two separate args
+      #    }
+      #    $args += @('Stay_Awake.py')
+      #    Write-Host "ONEFILE pyinstaller commandline:"
+      #    Write-Host "pyinstaller $($args -join ' ')"
+      #    pyinstaller @args
+      #    Get-ChildItem .\dist\
+      #
+      #- name: Zip onefile exe + optional icons
+      #  run: |
+      #    $exePath = ".\dist\${{ steps.names.outputs.app }}.exe"
+      #    if (!(Test-Path $exePath)) { throw "Missing expected exe: $exePath" }
+      #    $root = "${{ github.workspace }}"
+      #    $names = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
+      #    $icons = @()
+      #    foreach ($n in $names) {
+      #      $p = Join-Path $root $n
+      #      if (Test-Path $p) { $icons += (Resolve-Path $p).Path }
+      #    }
+      #    if ($icons.Count -gt 0) {
+      #      Write-Host "Icons found:"; $icons | ForEach-Object { Write-Host " - $_" }
+      #      $paths = @($exePath) + $icons
+      #    } else {
+      #      Write-Host "No icons found at repo root."
+      #      $paths = @($exePath)
+      #    }
+      #    Compress-Archive -Path $paths -DestinationPath ".\${{ steps.names.outputs.onefile_zip }}" -Force -CompressionLevel Optimal
+      #    #Write-Host "Created $((Resolve-Path .\${{ steps.names.outputs.onefile_zip }}).Path)"
+      #    $zipPath = ".\${{ steps.names.outputs.onefile_zip }}"
+      #    Write-Host "Created $((Resolve-Path $zipPath).Path)"
+      #    
+      #- name: List contents of onefile zip
+      #  run: |
+      #    $zipPath = ".\${{ steps.names.outputs.onefile_zip }}"
+      #    Write-Host "ZIP: $zipPath"
+      #    Add-Type -AssemblyName System.IO.Compression.FileSystem
+      #    $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+      #    "{0,12} {1,12}  {2}" -f "Size","CompSize","Name"
+      #    "{0,12} {1,12}  {2}" -f "----","--------","----"
+      #    foreach ($e in $z.Entries) {
+      #      "{0,12:N0} {1,12:N0}  {2}" -f $e.Length, $e.CompressedLength, $e.FullName
+      #    }
+      #    $z.Dispose()
+      #    # Presence checks (non-fatal warnings, or switch to 'throw' if you want hard failures)
+      #    $hasExe   = "${{ steps.names.outputs.app }}.exe"   # <- just a string
+      #    $iconLike = @('Stay_Awake_icon.png','Stay_Awake_icon.jpg','Stay_Awake_icon.jpeg','Stay_Awake_icon.webp','Stay_Awake_icon.bmp','Stay_Awake_icon.gif','Stay_Awake_icon.ico')
+      #    $z = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+      #    $names = $z.Entries | ForEach-Object FullName
+      #    $z.Dispose()
+      #    if ($names -notcontains $hasExe) { Write-Warning "EXE not found in onefile zip." }
+      #    if (-not ($names | Where-Object { $_ -in $iconLike })) { Write-Warning "No icon file found in onefile zip." }
+      #
       # ---------- ONEDIR ----------
       - name: PyInstaller (onedir, windowed, no console)
         run: |
@@ -303,25 +303,25 @@ jobs:
           if (-not ($names | Where-Object { $_ -in $iconLike })) { Write-Warning "No icon file found at zip root." }
 
       # ---------- Upload as workflow artifacts (for debugging / history) ----------
-      - name: Upload artifact (onefile zip)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.names.outputs.onefile_zip }}
-          path: ${{ steps.names.outputs.onefile_zip }}
-
+      #- name: Upload artifact (onefile zip)
+      #  uses: actions/upload-artifact@v4
+      #  with:
+      #    name: ${{ steps.names.outputs.onefile_zip }}
+      #    path: ${{ steps.names.outputs.onefile_zip }}
+      #
       - name: Upload artifact (onedir zip)
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.names.outputs.onedir_zip }}
           path: ${{ steps.names.outputs.onedir_zip }}
-
+      
       # ---------- Attach to the GitHub Release ----------
       - name: Attach assets to the Release
         if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ steps.names.outputs.onefile_zip }}
+      #      ${{ steps.names.outputs.onefile_zip }}
             ${{ steps.names.outputs.onedir_zip }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
