@@ -133,7 +133,7 @@ of the python version.
 * **Main Window**:
   * DPI-aware for maximum high quality image display fidelity   
   * Contains:
-    * Centered **image** (maximum size per global variable, initially 512 px; image is pre auto-sized to a square by **edge replication** so it never need be stretched afterward)
+    * Centered **image** (maximum size per global variable, initially 512 px; image is pre auto-sized to a square by **edge replication** (no solid-color padding) so it never need be stretched afterward)
     * Labels for: blurb, ETA, remaining time, cadence (frequency of gui countdown update, adjusts based on bands of time remaining, throttles when hidden, timer display snaps to neat boundaries when far from the deadline (calm UI))
   * Window re-sized to cater for image size plus other labels and fields 
   * User Resizing disabled (via `FormBorderStyle.FixedSingle`, `MaximizeBox=false`)
@@ -159,7 +159,7 @@ of the python version.
    1.7 From the image, build a multi-size icon in memory (sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)]) for use as the windows system-tray icon.
 
 2. **GUI + Tray**
-   * Initialize WinForms (DPI-aware) to provide message dialogs, error popups, main window with controls etc, tray icon.
+   * Initialize WinForms (DPI-aware and ensuring AutoScaleMode = Dpi in the form) to provide message dialogs, error popups, main window with controls etc, tray icon.
    * User Resizing disabled  hook basic keyboard/mouse.
    * Build NotifyIcon and context menu (“Show/Minimize/Quit”) per the python exmaple.
 
@@ -195,7 +195,7 @@ of the python version.
    1.4 Init time/timezone helpers
        └─ Windows API (GetDynamicTimeZoneInformation) or TimeZoneInfo
    1.5 Load image (from an internal base64 variable, or --icon, falling back to images in disk, whatever order the python program does it)
-       ├─ manipulate image in memory (edge replication to making it square)
+       ├─ manipulate image in memory using edge replication (no solid-color padding) to making it square
        └─ creation of an multi-size icon in memory for use when displayed in the system tray
 2. GUI + Tray
    2.1 Initialize GUI (WinForms/WPF) but keep minimal at first
@@ -249,13 +249,30 @@ of the python version.
 
 ### 4.3 Image/icon handling
 
-* Load image from source priority (CLI -> embedded base64 -> file next to EXE -> symbolic fallback).
-* Square by edge replication (ensuring no distortion later)
-  * Edge replication: extend the first/last row/column of pixels on any two opposite sides outward until square.
-* Then scale for:
-  * **Window** (max long side ≈ 512 px per a global variable)
-* Build a multi-size **Icon** from the squared image in memory for NotifyIcon in the windows system-tray, sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)]
-* Also use that multi-size icon as the app icon (ie when creating a shortcut to the app on the desktop) 
+* Load image from source priority order
+  * CLI --icon PATH
+  * embedded base64
+  * Stay_Awake_icon.* next to EXE
+    * Supported file types: PNG, JPG/JPEG, WEBP, BMP, GIF, ICO. Reject others with a clear error.
+* Square by Edge Replication (no solid-color padding)
+  * Compute delta = max(width,height) − min(width,height)
+  * Create a square canvas of size max(width,height) in 32bpp ARGB
+  * Draw the source centered
+  * If portrait (height > width):
+    * Fill left margin by stretching the leftmost 1px column of the drawn image to the canvas edge
+    * Fill right margin by stretching the rightmost 1px column of the drawn image to the canvas edge
+  * If landscape (width > height):
+    * Fill top margin by stretching the topmost 1px row to the canvas edge
+    * Fill bottom margin by stretching the bottommost 1px row to the canvas edge
+  * Note: If delta is odd, place the extra 1px on right/bottom to make it square
+  * Result: a square image with replicated edges; no solid-color bars; no subject distortion
+  * Finally, if the result not an even number of pixels vertically then make it an even numbered square
+    * Edge replicate 1 additional bottommost row and 1 rightmost column of pixels to make an even numbered square image
+* Then if necessary scale the resulting squared image for:
+  * Window image: scale the squared image so it is 512px (configurable via a global variable) using high-quality resampling
+* Build one multi-size **Icon** from the scaled squared image in memory (sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)] PNG-compressed) for use both as
+  * NotifyIcon in the windows system-tray
+  * the app icon (ie when creating a shortcut to the app on the desktop) 
 
 ### 4.4 Stay-Awake logic (Win32)
 
@@ -423,7 +440,7 @@ struct ImageAssets
 Assuming we define global constants along the lines:
 ```csharp
 MIN_AUTO_QUIT_SECS = 10         // 10 seconds
-MAX_AUTO_QUIT_SECS = 31557600   // (≈365.25 days * 24 * 60 * 60)
+MAX_AUTO_QUIT_SECS = 31557600   // (=365.25 days * 24 * 60 * 60)
 ```
 then the Bounds below are controlled by constants MIN_AUTO_QUIT_SECS and MAX_AUTO_QUIT_SECS.
 ```text
