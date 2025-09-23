@@ -930,19 +930,14 @@ Stay_Awake/
 * **Tracing**: as per 7—`FORCED_TRACE` and `--verbose` logic; `Trace.Listeners.Clear()` when off.
 * **Disposal**: every `Bitmap/Graphics/Icon/Stream/NotifyIcon` in `using` or disposed explicitly; `ExecutionState` reverted on exit.
 
-Perfect idea — this will make sure your **Visual Studio tweaks** aren’t forgotten when you return to coding later.
-Here’s an additional section to append to the appendix:
-
----
-
-## B.9 Housekeeping — Visual Studio IDE settings we changed
+## B.9 Housekeeping — Visual Studio Community Edition IDE settings we changed
 
 These are **developer-environment** settings (inside Visual Studio), not code.     
 They ensure the **WinForms project** behaves consistently across reopens and on new machines.
 
 ### B.9.1 High DPI & scaling
 
-* **Where:** `Project → Properties → Application → Manifest`
+* **Where:** `Project -> Properties -> Application -> Manifest`
 * **What we did:**
   * Switched from “Embed manifest with default settings” to **“Use a custom manifest”**.
   * In `app.manifest`, enabled:
@@ -954,7 +949,7 @@ They ensure the **WinForms project** behaves consistently across reopens and on 
 
 ### B.9.2 WinForms Designer availability
 
-* **Where:** `Tools → Options → Windows Forms Designer` (and/or `Project → Properties`)
+* **Where:** `Tools -> Options -> Windows Forms Designer` (and/or `Project -> Properties`)
 * **What we checked:**
   * Confirmed the **out-of-process WinForms Designer** is available and loading (sometimes fails unless correct targeting pack installed).
   * Made sure the project targets **.NET 8.0 (Windows)**, not “.NET Framework 4.x” (old tech).
@@ -962,7 +957,7 @@ They ensure the **WinForms project** behaves consistently across reopens and on 
 
 ### B.9.3 Application Icon
 
-* **Where:** `Project → Properties → Application → Resources → Icon and manifest`
+* **Where:** `Project -> Properties -> Application -> Resources -> Icon and manifest`
 * **What we did:**
   * Set the **Application Icon** to a prebuilt `.ico` (multi-size) in `Assets\AppIcon.ico`.
   * Left runtime tray icon to be set programmatically (see `TrayManager` & `IconWriter`).
@@ -970,7 +965,7 @@ They ensure the **WinForms project** behaves consistently across reopens and on 
 
 ### B.9.4 Debug/trace behavior
 
-* **Where:** `Project → Properties → Build` and code in `Program.cs`.
+* **Where:** `Project -> Properties -> Build` and code in `Program.cs`.
 * **What we did:**
   * Agreed to control tracing with **`--verbose`** flag + optional developer-only `FORCED_TRACE`.
   * Use `Trace.Listeners.Clear()` then add a `TextWriterTraceListener` that logs to `StayAwake_Trace_YYYYMMDD.log` in the EXE folder.
@@ -978,7 +973,7 @@ They ensure the **WinForms project** behaves consistently across reopens and on 
 
 ### B.9.5 Publish settings
 
-* **Where:** `Project → Publish → Edit Profile` (or directly in `Publishing/FolderProfile.pubxml`).
+* **Where:** `Project -> Publish -> Edit Profile` (or directly in `Publishing/FolderProfile.pubxml`).
 * **What we did:**
   * Enabled **Single-file, self-contained, win-x64** publish.
   * Disabled trimming for now (`<PublishTrimmed>false</PublishTrimmed>`).
@@ -994,4 +989,63 @@ They ensure the **WinForms project** behaves consistently across reopens and on 
 * **Why:** Matches Python app’s behavior: fixed-size window, DPI-scaled layout, no resize clutter.
 
 
-Would you like me to also create that **one-page tick-box checklist** (Setup IDE → Verify targeting → Manifest → Designer → Icon → Build → Publish) so you can literally print it and tape it next to the VM?
+## B.9.7 Visual Studio **Installer** – workloads & components to tick
+
+Open **Visual Studio Installer -> Modify** for VS 2022 Community:
+
+### Workloads (tab: *Workloads*)
+
+* ✅ **.NET desktop development**
+  *(This is the core workload that brings WinForms/WPF tooling.)*
+
+> You don’t need “Desktop development with C++” for this project, and you don’t need “Universal Windows Platform” or “Mobile development” for WinForms on .NET 8.
+
+### Individual components (tab: *Individual components*)
+
+Make sure these are installed (some come with the workload; check if they’re already present):
+* ✅ **.NET 8.0 SDK** (x64)
+* ✅ **.NET 8.0 Runtime** (x64) *(usually installed with SDK)*
+* ✅ **.NET 8.0 Windows Desktop Runtime / Targeting Pack**
+  *(This is what the WinForms designer needed when it failed to load earlier.)*
+* ✅ **Windows 11 SDK** *(provides up-to-date headers/tools, helpful for manifests and P/Invoke structs)*
+
+Nice-to-haves (optional):
+* ☐ **Git for Windows** *(if you don’t already have it; VS integrates with Git out of the box)*
+* ☐ **NuGet package manager** *(comes with VS; verify it’s present)*
+* ☐ **Developer PowerShell for VS** *(handy terminal with env pre-set)*
+
+> If you have interop or pinned structs for Win32 calls, having the **Windows 11 SDK** avoids mismatches.
+
+## B.9.8 IDE options that help this project (optional but handy)
+
+* **Tools -> Options -> Projects and Solutions -> .NET Core**
+  * Ensure **Use previews of the .NET SDK** = **Off** (unless you *want* to test previews).
+* **Tools -> Options -> Environment -> Preview Features**
+  * Keep defaults; no special previews needed for WinForms on .NET 8.
+* **Tools -> Options -> Windows Forms Designer**
+  * Verify the **designer** opens without errors for `.NET 8 (Windows)` projects. No extra toggle usually needed, but this is where you’d look if it regresses.
+
+## B.9.9 Project property recap (quick check)
+
+* **Project -> Properties -> Application**
+  * Target framework: **.NET 8.0 (Windows)**
+  * **Icon and manifest**:
+    * **Icon** = your prebuilt multi-image `.ico` in `Assets\AppIcon.ico`
+    * **Manifest** = **Use a custom manifest** -> `app.manifest` contains:
+      ```xml
+      <application xmlns="urn:schemas-microsoft-com:asm.v3">
+        <windowsSettings>
+          <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">PerMonitorV2</dpiAware>
+          <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+        </windowsSettings>
+      </application>
+      ```
+* **Project -> Properties -> Build**
+  * `TRACE` defined (default); `DEBUG` only for Debug config (default).
+* **Project -> Publish** (or your `Publishing/FolderProfile.pubxml`)
+  * **Self-contained**, **Single file**, `win-x64`
+  * **Trim** = **Off** initially (`PublishTrimmed=false`)
+  * `IncludeAllContentForSelfExtract=true` *(helps single-file startup; you already set this in the example pubxml)*
+
+
+Would you like me to also create that **one-page tick-box checklist** (Setup IDE -> Verify targeting -> Manifest -> Designer -> Icon -> Build -> Publish) so you can literally print it and tape it next to the VM?
