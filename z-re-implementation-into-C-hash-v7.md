@@ -143,7 +143,6 @@ C# using Visual Studio Community edition with specific intent to
   * Enabled/disabled with global boolean variable `SINGLE_INSTANCE_IS_ON` initially set to false 
     * Acquire named Mutex.
     * If already running: attempt to bring existing window to foreground or show tray balloon. If not possible, show modal and exit.
-
 * **Main Window**:
   * DPI-aware for maximum high quality image display fidelity   .
   * Contains:
@@ -151,24 +150,19 @@ C# using Visual Studio Community edition with specific intent to
     * Labels for: blurb, ETA, remaining time, cadence (frequency of gui countdown update, adjusts based on bands of time remaining, throttles when hidden, timer display snaps to neat boundaries when far from the deadline (calm UI)).
   * Window re-sized to cater for image size plus other labels and fields.
   * User Resizing disabled (via `FormBorderStyle.FixedSingle`, `MaximizeBox=false`).
-
 * **Stay-Awake logic**:
   * On ready: call `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)`.
   * On quit: call `SetThreadExecutionState(ES_CONTINUOUS)` to clear.
   * please check/confirm this is the case with the working python program as the example .
-  
 * **`Fatal()` logic**: 
   * Explicitly, Fatal() must work pre-UI (using MessageBox.Show without depending on Form or NotifyIcon).
   * This avoids confusion later (when deciding if mutex/CLI validation can call Fatal before UI exists).
-
 * **Single-instance flow**:
   * This behaviour is conditional according to a global boolean variable in the program.
   * This specification mentions “If already running bring the other instance forward”.
   * For clarity, first already-running instance is the one being `brought forward` (gain focus) if possible and very easy; inter-process communication et al is specifically not desired; The later instance only signals then exits.
-
 * **NotifyIcon visibility timing**:
   * The context menu may be created early, but `NotifyIcon.Visible = true` should only be set after the icon image is ready (to avoid flashing the default blank icon). This prevents confusion when coding step 1.4 vs 2.x.
-
 * **Wrap every disposable** (Bitmap, Graphics, Stream, Icon) in `using()` unless ownership must persist.
   * This avoids GDI leaks.
 
@@ -179,23 +173,23 @@ C# using Visual Studio Community edition with specific intent to
 ### 3.1 Main outline
 
 1. **Setup/Init**    
-  1.1 Parse CLI -> validate (`--icon`, `--for`, `--until`, `--verbose`).
-  1.2 Configure runtime tracing (see 4.11)
-    * Decide if tracing is enabled:  global variable enableTracing = FORCED_TRACE || (--verbose present)
-    * If enabled: create/overwrite a log file and attach a TextWriterTraceListener; set Trace.AutoFlush = true
-    * If disabled: Trace.Listeners.Clear() so no output goes anywhere
-  1.3 Validate inputs
-  1.4 Conditionally according to a global boolean variable: Acquire single-instance mutex, If already running bring the other instance forward and exit.
-  1.5 Initialize the UI
-     * Initialize and configure WinForms (DPI-aware and ensuring AutoScaleMode = Dpi in the form) to provide message dialogs, error popups, Fatal(msg), main window with controls etc.
-     * User Resizing disabled hook basic keyboard/mouse.
-     * The form layout and labels and buttons are to be positioned and look exactly like as used in the example python program
-     * Build context menu (“Show/Minimize/Quit”) per the python example
-     * Fatal(msg) on error: modal error dialog, **clear stay-awake** if set, exit.
-       * Note: Fatal() must be callable before the Form exists. Pre-UI Fatal must only show a MessageBox and exit; no tray or form interaction.
-     * The Image and the Tray icon will be done in a future step and not here
-  1.6 Initialize Time/Timezone helpers:
-     * use always-safe approach; `TimeZoneInfo.Local`with added Win32 verification for DST edge cases.
+  1.1 Parse CLI -> validate (`--icon`, `--for`, `--until`, `--verbose`).    
+  1.2 Configure runtime tracing (see 4.11)    
+    * Decide if tracing is enabled:  global variable enableTracing = FORCED_TRACE || (--verbose present)    
+    * If enabled: create/overwrite a log file and attach a TextWriterTraceListener; set Trace.AutoFlush = true    
+    * If disabled: Trace.Listeners.Clear() so no output goes anywhere    
+  1.3 Validate inputs    
+  1.4 Conditionally according to a global boolean variable: Acquire single-instance mutex, If already running bring the other instance forward and exit.    
+  1.5 Initialize the UI    
+     * Initialize and configure WinForms (DPI-aware and ensuring AutoScaleMode = Dpi in the form) to provide message dialogs, error popups, Fatal(msg), main window with controls etc.    
+     * User Resizing disabled hook basic keyboard/mouse.    
+     * The form layout and labels and buttons are to be positioned and look exactly like as used in the example python program    
+     * Build context menu (“Show/Minimize/Quit”) per the python example    
+     * Fatal(msg) on error: modal error dialog, **clear stay-awake** if set, exit.    
+       * Note: Fatal() must be callable before the Form exists. Pre-UI Fatal must only show a MessageBox and exit; no tray or form interaction.    
+     * The Image and the Tray icon will be done in a future step and not here    
+  1.6 Initialize Time/Timezone helpers:    
+     * use always-safe approach; `TimeZoneInfo.Local`with added Win32 verification for DST edge cases.    
 
 2. **Image and Icon preparation and insertion**    
   2.1 Load and prepare image in memory, if required making image square by edge-replication (max px size according to a global parameter, adjust size if and as required eg aligning with the working example python program)
