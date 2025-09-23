@@ -303,7 +303,7 @@ C# using Visual Studio Community edition with specific intent to
 * Then if necessary scale the resulting squared image for:
   * Window image: scale the squared image so it is 512px (configurable via a global variable) using high-quality resampling
 * Build one multi-size **Icon** from the scaled squared image in memory (sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)] PNG-compressed) for use both as
-  * NotifyIcon in the windows system-tray
+  * NotifyIcon in the windows system-tray (NotifyIcon.Visible should be set only after the multi-size icon is ready, to avoid flashing the default icon.)
   * the app icon (ie when creating a shortcut to the app on the desktop) 
 
 > For clarification, here is some pseudocode to square the image by edge replication:
@@ -355,6 +355,7 @@ return square, ico
 * Keeps the project **dependency-free** (no ImageSharp).
 * Windows 10/11 fully support **PNG frames** in ICOs.
 * One clean implementation path (no DIB/AND-mask quirks).
+* NotifyIcon.Visible should be set only after the multi-size icon is ready, to avoid flashing the default icon.
 
 ##### A) Responsibilities (3 tiny helpers)
 
@@ -472,6 +473,7 @@ return square, ico
 * Adaptive cadence (GUI update frequency), e.g. 10 min cadence (GUI update frequency) far out -> 1 sec cadence (GUI update frequency) near the end
   * When far from the deadline, align (snap) the next tick to a clean boundary (eg the nearest 00 or 30 seconds) to avoid visual jitter
   * Throttle the cadence (GUI update frequency) when the main window is hidden - parity with the example working Python program’s behavior.
+* Use System.Windows.Forms.Timer to avoid cross-thread Invoke() calls when updating labels/tooltip.
 
 ### 4.6 Conditional (per a global boolean variable) Single-instance guard
 
