@@ -486,6 +486,8 @@ return square, ico
 
 ### 4.6 Conditional (per a global boolean variable) Single-instance guard
 
+> NOTE: This single-instance proposal/requirement is no longer needed and has been discarded from consideration.
+
 * Named `SyayAwakeMutex` per a global variable. 
 * Conditionally, if another instance exists:
   * Try to **find the window** of the existing instance (e.g., via a named **Win32 message** or **mutex+named pipe** handshake) and **restore/activate** it.
