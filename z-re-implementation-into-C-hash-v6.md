@@ -5,23 +5,27 @@
 We are re-imagining and re-developing the **Stay\_Awake** utility
 originally written in Python (tkinter + Pillow + pystray + wakepy) into **C# (.NET 8, WinForms)**.
 
-* **From -> To:** Re-develop a small Windows utility originally written in Python (tkinter, Pillow, pystray, wakepy) as a **C# .NET 8 (WinForms)** desktop app that builds to a **portable, self-contained, single-file** EXE for Windows 11 (works on Windows 10/11).
+This is specifically **not** a line-for-line re-implementation of the example python program (although the 
+visible GUI must be close to or perhaps nearly visibly identical).  It is a re-development into
+C# using Visual Studio Community edition with specific intent to
+- redesign the structure/code to make it easiler for novice developers and maintainers to manage
+- to avoid false positives by antivirus products on pyinstaller-created .exe's
 
-* **From -> To**:
-  * From: Python, script-based, interpreted, depending on Pillow, wakepy, pstray, tkinter, and windows system calls.
-  * To: C# .NET 8 (WinForms), compiled, standalone portable EXE for Windows 10/11 (x64).
+* **From:** Python, script-based, interpreted, depending on Pillow, wakepy, pstray, tkinter, and windows system calls.
+* **To:** C# .NET 8 (WinForms) compiled desktop app that builds to a portable, self-contained, standalone, single-file EXE which works on Windows 10/11 (x64 only)
 
-* **Not** a direct translation: instead, a **clear and novice-friendly rewrite**,
-leveraging C# idioms and WinForms while matching
-all *CLI/GUI behavior* (GUI, image processing, tray icon, CLI options, etc)
-and approaches (stay-awake behavior, windows timer calls and countdowns, gui-update cadance bands, etc)
-of the python version.
+* **Not** a direct translation of the example working python program: instead, a **clear and novice-friendly rewrite**, leveraging
+- C# idioms and WinForms with clear and expansive commenting to make it easiler for novice developers and maintainers to manage
+- while matching the example python program (in commandline and visible GUI and behaviour and outcomes, though not necessarily code nor even structure):
+  * all *CLI/GUI behavior*; GUI, image processing, tray icon, CLI options, etc
+  * stay-awake behaviors, windows timer calls and countdowns, gui-update cadance bands, etc)
 
-* **Primary feature parity:**
-  * Prevent **system sleep/hibernation** while the app runs; **display monitor sleep remains allowed**. Restores defaults on exit.
-  * **System tray** icon with Show/Hide/Quit; main window hosts an image + labels + optional countdown.
-  * CLI options `--icon`, `--for`, `--until`, with the same parsing rules, bounds, and mutual exclusivity.
-  * **Low-churn timer/cadence** behavior near/far from deadline (adaptive, throttled when hidden).
+ * **Primary features requiring parity in outcome and visible GUI**:
+  * **Prevent system sleep/hibernation** while the app runs (**display monitor sleep remains allowed**); Restores defaults on exit.
+  * Main window hosts a squared (and possibly resized) image + labels + countdown fields (countdown related labels and fields are conditionally visible)
+  * Windows System-tray icon (based on the final image) with Show/Hide/Quit
+  * CLI options `--icon`, `--for`, `--until`, `--verbose`, with the same parsing rules, bounds, and mutual exclusivity of `--for`/`--until`
+  * Low-cpu-usage timer/cadence behaviors (via time bands) near/far from deadline (adaptive, throttled when hidden); refer to the example python program
 
 ---
 
@@ -166,7 +170,7 @@ of the python version.
      * Fatal(msg) on error: modal error dialog, **clear stay-awake** if set, exit.
      * The Image and the Tray icon will be done in a future step and not here
    1.5 Initialize Time/Timezone helpers:
-   use always-safe approach; `TimeZoneInfo.Local`with added Win32 verification for DST edge cases.
+     * use always-safe approach; `TimeZoneInfo.Local`with added Win32 verification for DST edge cases.
 
 2. **Image and Icon preparation and insertion**
    2.1 Load and prepare image in memory, if required making image square by edge-replication (max px size according to a global parameter, adjust size if and as required eg aligning with the working example python program)
