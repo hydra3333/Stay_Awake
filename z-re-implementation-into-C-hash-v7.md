@@ -9,7 +9,8 @@ This is specifically **not** a line-for-line re-implementation of the example py
 visible GUI must be close to or perhaps nearly visibly identical).  It is a re-development into
 C# using Visual Studio Community edition with specific intent to
 * redesign the structure/code to make it easiler for novice developers and maintainers to manage
-* to avoid false positives by antivirus products on pyinstaller-created .exe's
+* avoid false positives by antivirus products on pyinstaller-created .exe's
+* provide the same visible interface and the same functional outcome as the example python program
 
 **From:** Python, script-based, interpreted, depending on Pillow, wakepy, pstray, tkinter, and windows system calls.    
 **To:** C# .NET 8 (WinForms) compiled desktop app that builds to a portable, self-contained, standalone, single-file EXE which works on Windows 10/11 (x64 only)    
