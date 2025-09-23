@@ -61,6 +61,7 @@ C# using Visual Studio Community edition with specific intent to
     * Start/End of code blocks: `"Start of code block ZZZ, purpose: XYZ..."`, `"End of code block block ZZZ."`.
     * TRY/CATCH blocks: `"Start of WWW TRY"`, `"Caught WWW CATCH: {ex}"`, `"End of WWW TRY"`.
     * Variable changes: `"Function X: Variable Y changed from A to B"`.
+  * Visual Studio’s Output window can be used during debug runs to see Debug.WriteLine output.
 
 * **Naming Consistency**:
    * For constants use ALL_CAPS (UPPERCASE with words separated by `_`) 
@@ -130,6 +131,7 @@ C# using Visual Studio Community edition with specific intent to
 
 #### 2.2.5 **Exit codes**
   * 0 = normal
+  * 0 = normal timed-out auto-quit also exits with 0
   * non-zero = validation or runtime error
 
 ### 2.3 UI and Global behavior
@@ -162,8 +164,10 @@ C# using Visual Studio Community edition with specific intent to
   * For clarity, first already-running instance is the one being `brought forward` (gain focus) if possible and very easy; inter-process communication et al is specifically not desired; The later instance only signals then exits.
 
 * **NotifyIcon visibility timing**:
-  * the context menu may be created early, but `NotifyIcon.Visible = true` should only be set after the icon image is ready (to avoid flashing the default blank icon). This prevents confusion when coding step 1.4 vs 2.x.
+  * The context menu may be created early, but `NotifyIcon.Visible = true` should only be set after the icon image is ready (to avoid flashing the default blank icon). This prevents confusion when coding step 1.4 vs 2.x.
 
+* **Wrap every disposable** (Bitmap, Graphics, Stream, Icon) in `using()` unless ownership must persist.
+  * This avoids GDI leaks.
 
 ---
 
@@ -181,6 +185,7 @@ C# using Visual Studio Community edition with specific intent to
      * The form layout and labels and buttons are to be positioned and look exactly like as used in the example python program
      * Build context menu (“Show/Minimize/Quit”) per the python example
      * Fatal(msg) on error: modal error dialog, **clear stay-awake** if set, exit.
+       * Note: Fatal() must be callable before the Form exists. Pre-UI Fatal must only show a MessageBox and exit; no tray or form interaction.
      * The Image and the Tray icon will be done in a future step and not here
    1.5 Initialize Time/Timezone helpers:
      * use always-safe approach; `TimeZoneInfo.Local`with added Win32 verification for DST edge cases.
