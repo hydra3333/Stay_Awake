@@ -92,13 +92,13 @@ C# using Visual Studio Community edition with specific intent to
 #### 2.2.1 `--icon PATH`
   * Use a specific image for the window and tray icon.
   * Search order priority:
-  1. CLI `--icon PATH`
-  2. embedded base64 variable (if non-empty)
-  3. file named `Stay_Awake_icon.*` next to the EXE/script; supported types: **PNG, JPG/JPEG, BMP, GIF, ICO**
-  4. Validation:
-    * File must exist.
-    * Extension must be one of above (case-insensitive).
-    * If unsupported: fatal error message, listing supported types.
+    1. CLI `--icon PATH`
+    2. embedded base64 variable (if non-empty)
+    3. file named `Stay_Awake_icon.*` next to the EXE/script; supported types: **PNG, JPG/JPEG, BMP, GIF, ICO**
+    4. Validation:    
+      * File must exist.
+      * Extension must be one of above (case-insensitive).
+      * If unsupported: fatal error message, listing supported types.
 
 #### 2.2.2 `--for DURATION`
   * Run for fixed duration, then quit gracefully.
@@ -178,15 +178,15 @@ C# using Visual Studio Community edition with specific intent to
 
 ### 3.1 Main outline
 
-1. **Setup/Init**
-   1.1 Parse CLI -> validate (`--icon`, `--for`, `--until`, `--verbose`).
-   1.2 Configure runtime tracing (see 4.11)
-       ├─ Decide if tracing is enabled:  global variable enableTracing = FORCED_TRACE || (--verbose present)
-       ├─ If enabled: create/overwrite a log file and attach a TextWriterTraceListener; set Trace.AutoFlush = true
-       └─ If disabled: Trace.Listeners.Clear() so no output goes anywhere
-   1.3 Validate inputs
-   1.4 Conditionally according to a global boolean variable: Acquire single-instance mutex, If already running bring the other instance forward and exit.
-   1.5 Initialize the UI
+1. **Setup/Init**    
+  1.1 Parse CLI -> validate (`--icon`, `--for`, `--until`, `--verbose`).
+  1.2 Configure runtime tracing (see 4.11)
+    * Decide if tracing is enabled:  global variable enableTracing = FORCED_TRACE || (--verbose present)
+    * If enabled: create/overwrite a log file and attach a TextWriterTraceListener; set Trace.AutoFlush = true
+    * If disabled: Trace.Listeners.Clear() so no output goes anywhere
+  1.3 Validate inputs
+  1.4 Conditionally according to a global boolean variable: Acquire single-instance mutex, If already running bring the other instance forward and exit.
+  1.5 Initialize the UI
      * Initialize and configure WinForms (DPI-aware and ensuring AutoScaleMode = Dpi in the form) to provide message dialogs, error popups, Fatal(msg), main window with controls etc.
      * User Resizing disabled hook basic keyboard/mouse.
      * The form layout and labels and buttons are to be positioned and look exactly like as used in the example python program
@@ -194,30 +194,30 @@ C# using Visual Studio Community edition with specific intent to
      * Fatal(msg) on error: modal error dialog, **clear stay-awake** if set, exit.
        * Note: Fatal() must be callable before the Form exists. Pre-UI Fatal must only show a MessageBox and exit; no tray or form interaction.
      * The Image and the Tray icon will be done in a future step and not here
-   1.6 Initialize Time/Timezone helpers:
+  1.6 Initialize Time/Timezone helpers:
      * use always-safe approach; `TimeZoneInfo.Local`with added Win32 verification for DST edge cases.
 
-2. **Image and Icon preparation and insertion**
-   2.1 Load and prepare image in memory, if required making image square by edge-replication (max px size according to a global parameter, adjust size if and as required eg aligning with the working example python program)
-   2.2 Using the image, build a multi-size icon in memory (sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)]) for use as the windows system-tray icon.
-   2.3. **Image and Icon insertion**
-     * Insert squared image in memory into PictureBox.
-     * Use multi-size icon as the icon in the windows system-tray.
+2. **Image and Icon preparation and insertion**    
+  2.1 Load and prepare image in memory, if required making image square by edge-replication (max px size according to a global parameter, adjust size if and as required eg aligning with the working example python program)
+  2.2 Using the image, build a multi-size icon in memory (sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)]) for use as the windows system-tray icon.
+  2.3. **Image and Icon insertion**    
+    * Insert squared image in memory into PictureBox.
+    * Use multi-size icon as the icon in the windows system-tray.
 
-3. **Timers & updates**
-   * Arm countdown timer(s) based on validated `--for` or `--until`.
-   * Update labels and tray tooltip.
-   * Use adaptive cadence (frequency of gui countdown update, adjusts based on bands of time remaining, throttles when hidden, timer display snaps to neat boundaries when far from the deadline (calm UI))
+3. **Timers & updates**    
+  * Arm countdown timer(s) based on validated `--for` or `--until`.
+  * Update labels and tray tooltip.
+  * Use adaptive cadence (frequency of gui countdown update, adjusts based on bands of time remaining, throttles when hidden, timer display snaps to neat boundaries when far from the deadline (calm UI))
 
-4. **Stay-Awake logic**
-   * Set thread execution state.
-   * Ensure revert on quit.
+4. **Stay-Awake logic**    
+  * Set thread execution state.
+  * Ensure revert on quit.
 
 5. **Cleanup**
-   * Dispose tray icon.
-   * If required, release Mutex.
-   * Dispose trace listener if attached
-   * Exit application.
+  * Dispose tray icon.
+  * If required, release Mutex.
+  * Dispose trace listener if attached
+  * Exit application.
 
 ### 3.2 Alternative outline notation, hopefully consistent with 3.1
 
