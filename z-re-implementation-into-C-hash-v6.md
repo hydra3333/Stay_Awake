@@ -91,7 +91,7 @@ C# using Visual Studio Community edition with specific intent to
   * Search order priority:
   1. CLI `--icon PATH`
   2. embedded base64 variable (if non-empty)
-  3. file named `Stay_Awake_icon.*` next to the EXE/script; supported types: **PNG, JPG/JPEG, WEBP, BMP, GIF, ICO**
+  3. file named `Stay_Awake_icon.*` next to the EXE/script; supported types: **PNG, JPG/JPEG, BMP, GIF, ICO**
   4. Validation:
     * File must exist.
     * Extension must be one of above (case-insensitive).
@@ -280,7 +280,7 @@ C# using Visual Studio Community edition with specific intent to
   * CLI --icon PATH
   * embedded base64
   * Stay_Awake_icon.* next to EXE
-    * Supported file types: PNG, JPG/JPEG, WEBP, BMP, GIF, ICO. Reject others with a clear error.
+    * Supported file types: PNG, JPG/JPEG, BMP, GIF, ICO. Reject others with a clear error.
 * Square by Edge Replication (no solid-color padding)
   * Compute delta = max(width,height) − min(width,height)
   * Create a square canvas of size max(width,height) in 32bpp ARGB
@@ -358,8 +358,7 @@ return square, ico
    * **Inputs:** CLI `--icon` path (preferred), embedded base64 (optional), `Stay_Awake_icon.*` next to EXE (fallback), internal glyph (last resort).
    * **Outputs:** `Bitmap original` (32bpp ARGB).
    * **Rules:**
-     * Supported extensions (v1): `.png`, `.jpg/.jpeg`, `.bmp`, `.gif`, `.ico`.
-       WEBP: **reject with a clear message** (documented). (Optional future: WIC interop.)
+     * Supported extensions: `.png`, `.jpg/.jpeg`, `.bmp`, `.gif`, `.ico`.
      * For GIF: first frame only.
      * For ICO input: pick the **largest** frame in the file as `original`.
      * Validate file exists and is readable; else fail with `Fatal()`.
@@ -414,7 +413,7 @@ return square, ico
 * **Huge images**: consider a **max source size** (e.g., downscale to ≤ 1024×1024) before squaring to keep memory bounded.
 * **Color profile/EXIF**: System.Drawing ignores most profiles; acceptable for utility use. (Document this.)
 * **Alpha**: ensure backgrounds remain transparent—no premultiplied color fringes (use ARGB canvases only).
-* **GIF/WEBP**: first frame only; WEBP -> **reject with a clear message** in v1.
+* **GIF**: first frame only.
 
 ##### E) Public APIs (no code, just contracts)
 
@@ -444,7 +443,7 @@ return square, ico
 
 ##### G) Tests (what “done” looks like)
 
-1. **Load**: PNG/JPG/BMP/GIF/ICO source paths load; non-existent path -> fatal with clear message; WEBP -> rejected with specific message.
+1. **Load**: PNG/JPG/BMP/GIF/ICO source paths load; non-existent path -> fatal with clear message.
 2. **Square**: non-square inputs produce perfectly square outputs with **replicated edges**, no solid bars, no distortion.
 3. **Icon**: resulting `.ico` has frames at exactly `[16,20,24,32,40,48,64,128,256]`.
 4. **Visual**:
@@ -628,7 +627,7 @@ then the Bounds below are controlled by constants MIN_AUTO_QUIT_SECS and MAX_AUT
 ```text
 --icon PATH
     Use a specific image file for the window/tray icon.
-    Supports: PNG, JPG/JPEG, WEBP, BMP, GIF, ICO.
+    Supports: PNG, JPG/JPEG, BMP, GIF, ICO.
 
 --for DURATION
     Keep awake for a fixed time, then quit gracefully.
