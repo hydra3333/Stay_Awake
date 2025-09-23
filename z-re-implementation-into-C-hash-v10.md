@@ -722,41 +722,42 @@ then the Bounds below are controlled by constants `MIN_AUTO_QUIT_SECS` and `MAX_
 ## B.1 Solution & project layout
 
 ```
-Stay_Awake/
-├─ Stay_Awake.sln
-└─ src/
-   └─ Stay_Awake/                      <- WinForms app project (.csproj here)
-      ├─ Program.cs                    <- Entry point: CLI -> tracing bootstrap -> Application.Run
-      ├─ AppState.cs                   <- Global-ish state & constants (readonly where possible)
-      ├─ Fatal.cs                      <- Centralized Fatal(msg) helper (pre-UI safe)
-      ├─ Cli/
-      │  ├─ CliOptions.cs              <- POCO of parsed flags/values
-      │  └─ CliParser.cs               <- Parse/validate --icon/--for/--until/--verbose
-      ├─ Imaging/
-      │  ├─ ImageLoader.cs             <- Load original (CLI -> embedded -> sidecar -> fallback)
-      │  ├─ ImageSquareReplicator.cs   <- MakeSquareByEdgeReplication(Bitmap)
-      │  └─ IconWriter.cs              <- Build multi-image ICO (16..256) — all-PNG frames
-      ├─ Time/
-      │  ├─ TimezoneHelpers.cs         <- TimeZoneInfo.Local + Win32 DST edge checks
-      │  └─ CountdownPlanner.cs        <- “--for/--until” -> schedule; adaptive cadence hints
-      ├─ Stay_Awake/
-      │  └─ ExecutionState.cs          <- SetThreadExecutionState wrapper; armed flag
-      ├─ UI/
-      │  ├─ MainForm.cs                <- Form code-behind (events, timers, tray handlers)
-      │  ├─ MainForm.Designer.cs       <- Designer (PictureBox, labels, menu wiring)
-      │  └─ TrayManager.cs             <- NotifyIcon + ContextMenuStrip lifecycle (Visible timing)
+Stay_Awake/                              <- Solution root (on disk)
+├─ Stay_Awake.sln                        <- Double-click this to open in VS
+├─ .gitignore                            <- (optional, for Git)
+├─ README.md                             <- (optional, project docs)
+└─ docs/                                 <- Source code container
+└─ src/                                  <- Source code container
+   └─ Stay_Awake/                        <- WinForms project root
+      ├─ Stay_Awake.csproj               <- Project file
+      ├─ Program.cs                      
+      ├─ AppState.cs                     
+      ├─ Fatal.cs                        
+      ├─ PowerManagement/                <- Namespace: Stay_Awake.PowerManagement
+      │  └─ ExecutionState.cs
+      ├─ Cli/                            <- Namespace: Stay_Awake.Cli
+      │  ├─ CliOptions.cs
+      │  └─ CliParser.cs
+      ├─ Imaging/                        <- Namespace: Stay_Awake.Imaging
+      │  ├─ ImageLoader.cs
+      │  ├─ ImageSquareReplicator.cs
+      │  └─ IconWriter.cs
+      ├─ Time/                           <- Namespace: Stay_Awake.Time
+      │  ├─ TimezoneHelpers.cs
+      │  └─ CountdownPlanner.cs
+      ├─ UI/                             <- Namespace: Stay_Awake.UI
+      │  ├─ MainForm.cs
+      │  ├─ MainForm.Designer.cs
+      │  └─ TrayManager.cs
       ├─ Properties/
-      │  ├─ Resources.resx             <- Embedded fallback glyph (tiny PNG)
-      │  └─ Settings.settings          <- (empty; not required)
-      ├─ Assets/                       <- Content files you keep in repo (non-embedded)
-      │  ├─ Stay_Awake_icon.png        <- Your preferred window image (optional)
-      │  └─ Stay_Awake_icon.ico        <- Source PNG used to build .ico at design-time
+      │  └─ Resources.resx
+      ├─ Assets/
+      │  ├─ Stay_Awake_icon.png
+      │  └─ Stay_Awake_icon.ico
       ├─ Publishing/
-      │  ├─ FolderProfile.pubxml       <- “FolderProfile” publish profile (win-x64, single file)
-      │  └─ README-publish.txt         <- Quick publish notes for you
-      ├─ app.manifest                  <- PerMonitorV2 DPI + longPathAware, UAC asInvoker
-      ├─ Stay_Awake.csproj
-      └─ README-dev-notes.md           <- Dev notes / quick commands (optional)
+      │  └─ FolderProfile.pubxml
+      ├─ app.manifest
+      └─ NativeMethods.txt               <- For CsWin32
 ```
 
 ### Notes
