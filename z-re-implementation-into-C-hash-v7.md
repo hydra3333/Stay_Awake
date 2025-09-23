@@ -173,14 +173,14 @@ C# using Visual Studio Community edition with specific intent to
 ### 3.1 Main outline
 
 1. **Setup/Init**    
-  1.1 Parse CLI -> validate (`--icon`, `--for`, `--until`, `--verbose`).    
-  1.2 Configure runtime tracing (see 4.11)    
+  * Parse CLI -> validate (`--icon`, `--for`, `--until`, `--verbose`).    
+  * Configure runtime tracing (see 4.11)    
     * Decide if tracing is enabled:  global variable enableTracing = FORCED_TRACE || (--verbose present)    
     * If enabled: create/overwrite a log file and attach a TextWriterTraceListener; set Trace.AutoFlush = true    
     * If disabled: Trace.Listeners.Clear() so no output goes anywhere    
-  1.3 Validate inputs    
-  1.4 Conditionally according to a global boolean variable: Acquire single-instance mutex, If already running bring the other instance forward and exit.    
-  1.5 Initialize the UI    
+  * Validate inputs    
+  * Conditionally according to a global boolean variable: Acquire single-instance mutex, If already running bring the other instance forward and exit.    
+  * Initialize the UI    
      * Initialize and configure WinForms (DPI-aware and ensuring AutoScaleMode = Dpi in the form) to provide message dialogs, error popups, Fatal(msg), main window with controls etc.    
      * User Resizing disabled hook basic keyboard/mouse.    
      * The form layout and labels and buttons are to be positioned and look exactly like as used in the example python program    
@@ -188,13 +188,13 @@ C# using Visual Studio Community edition with specific intent to
      * Fatal(msg) on error: modal error dialog, **clear stay-awake** if set, exit.    
        * Note: Fatal() must be callable before the Form exists. Pre-UI Fatal must only show a MessageBox and exit; no tray or form interaction.    
      * The Image and the Tray icon will be done in a future step and not here    
-  1.6 Initialize Time/Timezone helpers:    
+  * Initialize Time/Timezone helpers:    
      * use always-safe approach; `TimeZoneInfo.Local`with added Win32 verification for DST edge cases.    
 
 2. **Image and Icon preparation and insertion**    
-  2.1 Load and prepare image in memory, if required making image square by edge-replication (max px size according to a global parameter, adjust size if and as required eg aligning with the working example python program)
-  2.2 Using the image, build a multi-size icon in memory (sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)]) for use as the windows system-tray icon.
-  2.3. **Image and Icon insertion**    
+  * Load and prepare image in memory, if required making image square by edge-replication (max px size according to a global parameter, adjust size if and as required eg aligning with the working example python program)
+  * Using the image, build a multi-size icon in memory (sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)]) for use as the windows system-tray icon.
+  * **Image and Icon insertion**    
     * Insert squared image in memory into PictureBox.
     * Use multi-size icon as the icon in the windows system-tray.
 
