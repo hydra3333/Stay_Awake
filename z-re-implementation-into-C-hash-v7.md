@@ -1,4 +1,4 @@
-# Stay\_Awake - C# WinForms Re-implementation (SPEC)
+# Stay\_Awake - C# WinForms Re-implementation SPECIFICATION
 
 ## 0) Goal (What we’re doing)
 
@@ -8,19 +8,19 @@ originally written in Python (tkinter + Pillow + pystray + wakepy) into **C# (.N
 This is specifically **not** a line-for-line re-implementation of the example python program (although the 
 visible GUI must be close to or perhaps nearly visibly identical).  It is a re-development into
 C# using Visual Studio Community edition with specific intent to
-- redesign the structure/code to make it easiler for novice developers and maintainers to manage
-- to avoid false positives by antivirus products on pyinstaller-created .exe's
+* redesign the structure/code to make it easiler for novice developers and maintainers to manage
+* to avoid false positives by antivirus products on pyinstaller-created .exe's
 
-* **From:** Python, script-based, interpreted, depending on Pillow, wakepy, pstray, tkinter, and windows system calls.
-* **To:** C# .NET 8 (WinForms) compiled desktop app that builds to a portable, self-contained, standalone, single-file EXE which works on Windows 10/11 (x64 only)
+**From:** Python, script-based, interpreted, depending on Pillow, wakepy, pstray, tkinter, and windows system calls.    
+**To:** C# .NET 8 (WinForms) compiled desktop app that builds to a portable, self-contained, standalone, single-file EXE which works on Windows 10/11 (x64 only)    
 
-* **Not** a direct translation of the example working python program: instead, a **clear and novice-friendly rewrite**, leveraging
+**Not** a direct translation of the example working python program: instead, a **clear and novice-friendly rewrite**, leveraging    
 - C# idioms and WinForms with clear and expansive commenting to make it easiler for novice developers and maintainers to manage
 - while matching the example python program (in commandline and visible GUI and behaviour and outcomes, though not necessarily code nor even structure):
   * all *CLI/GUI behavior*; GUI, image processing, tray icon, CLI options, etc
   * stay-awake behaviors, windows timer calls and countdowns, gui-update cadance bands, etc)
 
- * **Primary features requiring parity in outcome and visible GUI**:
+**Primary features requiring parity in outcome and visible GUI**:
   * **Prevent system sleep/hibernation** while the app runs (**display monitor sleep remains allowed**); Restores defaults on exit.
   * Main window hosts a squared (and possibly resized) image + labels + countdown fields (countdown related labels and fields are conditionally visible)
   * Windows System-tray icon (based on the final image) with Show/Hide/Quit
