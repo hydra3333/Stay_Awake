@@ -695,7 +695,7 @@ struct ImageAssets
 
 ---
 
-## Appendix A - Behavior examples (CLI)
+# Appendix A - Behavior examples (CLI)
 
 Assuming we define global constants along the lines:
 ```csharp
@@ -1106,3 +1106,522 @@ Publish
 When all boxes are ticked, the environment matches spec (Appendix B.9)
 and then you can safely begin coding.
 ```
+
+# Appendix C - Timer Countdown Related Matters in the Python Program
+
+The purpose of this appendix is to provide an overview of the current timer system's behavior,
+including exact thresholds, algorithmic details, and real-world examples showing how the
+python program responds to various time progressions and user actions.
+
+## C.1 Window Visibility Management
+
+### C.1.1 Minimize to System Tray Behavior
+
+When the user minimizes the window to the system tray 
+(either via the "Minimize to System Tray" button or the title bar minimize button "_"):
+
+1. The main window is withdrawn using `self.main_window.withdraw()`
+2. `self.window_visible` flag is set to `False`
+3. The window becomes completely hidden (not just iconified)
+4. **Countdown update throttling activates** (see Section 3.3 for details)
+5. The system tray icon remains visible and functional
+6. All countdown calculations continue running in the background
+
+### C.1.2 Show Window from System Tray Behavior
+
+When the user shows the window from the system tray (via right-click menu "Show Window" or double-clicking the tray icon):
+
+1. The window is restored using `self.main_window.deiconify()`
+2. Window is brought to front with `self.main_window.lift()`
+3. Focus is forced to the window with `self.main_window.focus_force()`
+4. `self.window_visible` flag is set to `True`
+5. **Immediate countdown reschedule** occurs via `self._schedule_countdown_tick()`
+6. The countdown display updates immediately to show current values
+7. Normal (non-throttled) cadence resumes based on remaining time
+
+### C.1.3 Important Notes on Window State
+
+- The title bar close button "X" performs a **full application exit**, not minimize
+- Window maximize and resize are disabled (window is resizable but user-controlled)
+- The window intercepts OS iconify events and redirects them to system tray hiding
+
+## C.2 GUI Countdown Fields - Visibility and Update Conditions
+
+### C.2.1 The Three Countdown Display Fields
+
+The countdown area contains exactly three display fields, arranged in a two-column table format (label | value):
+
+**Field 1: Auto-quit ETA**
+- **Label**: "Auto-quit at:"
+- **Value**: Wall-clock timestamp in format "YYYY-MM-DD HH:MM:SS"
+- **Example**: "2025-09-23 15:30:45"
+
+**Field 2: Time Remaining**
+- **Label**: "Time remaining:"
+- **Value**: Countdown in format "DDDd HH:MM:SS" (days shown only if >0)
+- **Example**: "2d 03:45:22" or "00:45:22"
+
+**Field 3: Timer Update Frequency (Cadence)**
+- **Label**: "Timer update frequency:"
+- **Value**: Current cadence interval in format "HH:MM:SS"
+- **Example**: "00:10:00" (updates every 10 minutes)
+
+### C.2.2 Visibility Conditions
+
+**When All Three Fields Are VISIBLE:**
+- `--for DURATION` was specified on command line AND duration > 0
+- OR `--until "TIMESTAMP"` was specified on command line
+- The fields appear in the main window below the status hint text
+- All three fields are created together during window initialization
+
+**When All Three Fields Are HIDDEN:**
+- No `--for` or `--until` parameter was provided
+- OR `--for 0` was specified (explicitly disabled auto-quit)
+- In this case, the countdown frame is never created at all
+
+### C.2.3 Update Behavior for Each Field
+
+**Field 1 (Auto-quit ETA):**
+- Set **once** during timer initialization
+- **Never updates** after initial display
+- Uses `self.auto_quit_walltime` (wall-clock epoch) for display
+- Remains static even if system clock changes
+
+**Field 2 (Time Remaining):**
+- Updates on **every countdown tick** (when window is visible)
+- Calculated from: `max(0, int(round(self.auto_quit_deadline - time.monotonic())))`
+- Uses monotonic time to avoid system clock change issues
+- Format changes dynamically: shows days only when remaining time ≥ 1 day
+- When window is hidden, updates continue but are throttled (see Section 3.3)
+
+**Field 3 (Timer Update Frequency):**
+- Updates **only when the cadence value changes** (not on every tick)
+- Tracked via `self._last_cadence_s` to prevent unnecessary updates
+- Shows the current update interval being used (not the remaining time)
+- Example: if updating every 5 minutes, displays "00:05:00"
+- Only updates when window is visible
+
+## C.3 Cadence System - Adaptive Update Frequency
+
+### C.3.1 Core Cadence Mechanism
+
+The cadence system dynamically adjusts how frequently the countdown display updates based on the remaining time. This conserves CPU resources while maintaining appropriate user feedback.
+
+**The 9 Cadence Bands (from least to most frequent):**
+
+| Threshold (seconds) | Condition | Update Interval | Interval (seconds) |
+|---------------------|-----------|-----------------|-------------------|
+| 3,600 | remaining > 60 min | Every 10 minutes | 600s |
+| 1,800 | remaining > 30 min | Every 5 minutes | 300s |
+| 900 | remaining > 15 min | Every 1 minute | 60s |
+| 600 | remaining > 10 min | Every 30 seconds | 30s |
+| 300 | remaining > 5 min | Every 15 seconds | 15s |
+| 120 | remaining > 2 min | Every 10 seconds | 10s |
+| 60 | remaining > 1 min | Every 5 seconds | 5s |
+| 30 | remaining > 30 sec | Every 2 seconds | 2s |
+| -1 (catch-all) | remaining ≤ 30 sec | Every 1 second | 1s |
+
+**How Band Selection Works:**
+1. Calculate remaining seconds: `rem = max(0, int(round(self.auto_quit_deadline - time.monotonic())))`
+2. Iterate through bands from top to bottom
+3. Use the first band where `rem > threshold`
+4. The catch-all band (threshold = -1) always matches if no earlier band does
+
+### C.3.2 Snap-to-Boundary Mechanism
+
+**Purpose**: When far from the deadline, align the first update to a "round" cadence boundary so the countdown appears cleaner to users.
+
+**When Snap-to Applies:**
+- **Condition**: `remaining >= HARD_CADENCE_SNAP_TO_THRESHOLD_SECONDS` (60 seconds)
+- **Only affects**: The very next tick after this condition becomes true
+- **Does not apply**: When remaining < 60 seconds (final minute uses exact updates)
+
+**How Snap-to-Boundary Works:**
+
+1. Determine current cadence interval in seconds: `cadence_s = max(1, next_ms // 1000)`
+2. Calculate phase offset: `phase = rem % cadence_s`
+   - This is how many seconds we are "past" the last boundary
+3. Calculate snap interval: `snap_ms = phase * 1000`
+   - This brings the next tick to the boundary
+4. Apply micro-sleep protection: if `snap_ms < 200`, add one full cadence interval
+   - Prevents thrashing at boundaries
+5. Only use snap if it's sooner than the regular cadence: `if snap_ms < next_ms`
+
+**Example 1: Starting with `--for 2h` (7200 seconds)**
+- Initial remaining: 7200s
+- Current cadence: 600s (10 minutes) because 7200 > 3600
+- Phase: 7200 % 600 = 0 (already on boundary)
+- Snap: 0ms → too small, add 600s → 600,000ms
+- Result: First update in 10 minutes (at 7200-600=6600s remaining)
+
+**Example 2: Starting with `--for 75m` (4500 seconds)**
+- Initial remaining: 4500s
+- Current cadence: 600s (10 minutes) because 4500 > 3600
+- Phase: 4500 % 600 = 300 (5 minutes past boundary)
+- Snap: 300s = 300,000ms
+- 300,000 < 600,000, so use snap
+- Result: First update in 5 minutes (at 4200s = 70min, a "round" number)
+
+**Example 3: Countdown at 45 seconds remaining**
+- Remaining: 45s
+- 45 < 60 (HARD_CADENCE_SNAP_TO_THRESHOLD_SECONDS)
+- Snap-to is **disabled**
+- Current cadence: 2s (because 30 < 45 ≤ 60)
+- Result: Regular 2-second updates, no snapping
+
+### C.3.3 Hidden Window Throttling
+
+**Purpose**: Reduce CPU usage when the window is minimized to system tray while maintaining responsiveness near deadline.
+
+**Throttling Rules:**
+
+1. **Normal Updates (Window Visible)**:
+   - Use cadence bands exactly as specified in Section 3.1
+   - All updates occur on schedule
+
+2. **Throttled Updates (Window Hidden)**:
+   - **Condition**: Window is not viewable AND remaining > 60s
+   - **Minimum interval**: 60,000ms (60 seconds)
+   - **Application**: If calculated cadence < 60s, override to 60s
+   - **Example**: At 10 minutes remaining (normal cadence = 30s), hidden cadence becomes 60s
+
+3. **No Throttling (Final Minute)**:
+   - **Condition**: Remaining ≤ 60s (HIDDEN_BACKOFF_UNTIL_SECS)
+   - **Behavior**: Normal cadence applies even when hidden
+   - **Reason**: Ensures timer fires promptly near deadline
+
+**Throttling Constants:**
+- `HIDDEN_CADENCE_MIN_MS = 60,000` (60 seconds minimum when hidden)
+- `HIDDEN_BACKOFF_UNTIL_SECS = 60` (disable throttling in final 60 seconds)
+
+**Sequence Example: User Minimizes at 15 Minutes Remaining**
+
+1. **Before minimize** (window visible, 900s remaining):
+   - Cadence: 60s (1 minute updates) because 900 > 600
+   - Updates every 60 seconds
+
+2. **User minimizes window**:
+   - Window visibility: `False`
+   - Remaining: ~900s (still > 60s)
+   - Calculated cadence: 60s
+   - Throttle check: 60s ≥ 60s minimum → no override needed
+   - Continues 60s updates (happens to match)
+
+3. **Countdown reaches 8 minutes (480s)**:
+   - Normal cadence would be: 30s (because 480 > 300)
+   - Window still hidden, 480 > 60
+   - Throttle applies: max(30s, 60s) → 60s
+   - Updates every 60 seconds (throttled from normal 30s)
+
+4. **Countdown reaches 55 seconds**:
+   - Normal cadence: 2s (because 30 < 55 ≤ 60)
+   - Window still hidden, but 55 ≤ 60
+   - Throttling **disabled** (final minute exception)
+   - Updates every 2 seconds despite hidden window
+
+5. **User shows window at 30 seconds**:
+   - Window visibility: `True`
+   - `_schedule_countdown_tick()` called immediately
+   - Cadence: 2s (because 30 ≤ 30)
+   - Display updates instantly, then continues every 2s
+
+### C.3.4 Cadence Display Field Update Logic
+
+**Update Trigger**: The "Timer update frequency" field only updates when the cadence value **changes**.
+
+**Tracking Mechanism**:
+- Current cadence stored in: `self._last_cadence_s` (integer seconds)
+- New cadence calculated: `cad_s = max(1, int(round(next_ms / 1000)))`
+- Comparison: `if self._last_cadence_s != cad_s:`
+
+**Update Conditions** (ALL must be true):
+1. `self._cadence_value` exists (GUI label is created)
+2. Window is visible (`visible == True`)
+3. Calculated cadence differs from last shown value
+
+**Why This Matters**:
+- Prevents visual churn when cadence doesn't change
+- Reduces UI updates from potentially every tick to only ~9 times maximum (band transitions)
+- The countdown value updates every tick, but cadence display is more stable
+
+**Example Sequence: `--for 90m` (5400 seconds)**
+
+| Remaining Time | Cadence Band | Cadence Value | Cadence Display Updates? |
+|----------------|--------------|---------------|--------------------------|
+| 5400s (90min) | 600s | "00:10:00" | YES (initial display) |
+| 4800s (80min) | 600s | "00:10:00" | NO (unchanged) |
+| 3000s (50min) | 600s | "00:10:00" | NO (unchanged) |
+| 1900s (31.6min) | 300s | "00:05:00" | YES (band change) |
+| 1200s (20min) | 300s | "00:05:00" | NO (unchanged) |
+| 850s (14.1min) | 60s | "00:01:00" | YES (band change) |
+| 550s (9.1min) | 30s | "00:00:30" | YES (band change) |
+| 250s (4.1min) | 15s | "00:00:15" | YES (band change) |
+| 100s (1.6min) | 10s | "00:00:10" | YES (band change) |
+| 55s | 5s | "00:00:05" | YES (band change) |
+| 28s | 2s | "00:00:02" | YES (band change) |
+| 15s | 1s | "00:00:01" | YES (band change) |
+
+## C.4 Timer Scheduling and Precision
+
+### C.4.1 Dual Time Systems
+
+**Monotonic Time (for countdown accuracy):**
+- Used for: `self.auto_quit_deadline` (when timer will fire)
+- Function: `time.monotonic()`
+- Advantage: Unaffected by system clock changes, DST, or NTP adjustments
+- Calculation: `self.auto_quit_deadline = time.monotonic() + seconds`
+
+**Wall-Clock Time (for user display):**
+- Used for: `self.auto_quit_walltime` (ETA display field)
+- Function: `time.time()` and `math.ceil()`
+- Purpose: Shows user-readable timestamp
+- Calculation: `self.auto_quit_walltime = math.ceil(time.time()) + seconds`
+  - OR (for `--until`): `self.auto_quit_walltime = target_epoch` (from CLI parsing)
+
+### C.4.2 Timer Re-ceiling Strategy
+
+**Purpose**: Maximize accuracy by recalculating just before timer activation.
+
+**Two-Stage Calculation:**
+
+1. **During CLI Parsing** (for `--for`):
+   - Parse duration to seconds
+   - Calculate: `target_epoch = math.ceil(time.time()) + seconds`
+   - Store as: `auto_quit_target_epoch`
+   - This accounts for parsing overhead
+
+2. **Just Before Timer Activation** (in `run()` method):
+   - Recalculate: `secs_to_run = int(math.ceil(target_epoch - time.time()))`
+   - This accounts for UI creation overhead
+   - Ensures timer fires at the exact target moment
+
+**Why This Matters:**
+- First ceil: aligns to whole-second boundary after parsing
+- Second ceil: compensates for any delays in startup/UI creation
+- Result: Timer fires precisely when promised, not early
+
+### C.4.3 Countdown Tick Scheduling Flow
+
+**Each Tick Follows This Sequence:**
+
+1. **Validate Countdown Active**:
+   - Check: `self.auto_quit_deadline` exists
+   - Check: `self.main_window` exists and is valid
+   - If either fails → cancel pending ticks and exit
+
+2. **Determine Visibility**:
+   - `visible = bool(self.main_window.winfo_viewable())`
+   - Catches exceptions (defaults to `True` if check fails)
+
+3. **Calculate Remaining Time**:
+   - `now = time.monotonic()`
+   - `rem = max(0, int(round(self.auto_quit_deadline - now)))`
+
+4. **Update Display** (if visible):
+   - `self._countdown_value.configure(text=self._format_dhms(rem))`
+   - Format: "DDDd HH:MM:SS" or "HH:MM:SS"
+
+5. **Determine Next Cadence**:
+   - Iterate through `COUNTDOWN_CADENCE` bands
+   - Select first band where `rem > threshold`
+   - Get `next_ms` (milliseconds to next update)
+
+6. **Apply Snap-to-Boundary** (if applicable):
+   - Check: `rem >= 60` (HARD_CADENCE_SNAP_TO_THRESHOLD_SECONDS)
+   - Calculate phase offset and adjust `next_ms`
+   - See Section 3.2 for full algorithm
+
+7. **Apply Hidden Window Throttling** (if applicable):
+   - Check: `not visible and rem > 60`
+   - Override: `next_ms = max(next_ms, 60000)`
+
+8. **Update Cadence Display** (if changed and visible):
+   - Calculate: `cad_s = max(1, int(round(next_ms / 1000)))`
+   - If `cad_s != self._last_cadence_s`:
+     - Update `self._cadence_value` label
+     - Store `self._last_cadence_s = cad_s`
+
+9. **Cancel Previous Tick**:
+   - `self.main_window.after_cancel(self._countdown_after_id)`
+   - Prevents duplicate scheduled callbacks
+
+10. **Schedule Next Tick**:
+    - `self._countdown_after_id = self.main_window.after(next_ms, self._schedule_countdown_tick)`
+    - Creates recursive loop until countdown ends
+
+## C.5 Edge Cases and Special Behaviors
+
+### C.5.1 Startup Sequence for Auto-Quit
+
+**Critical Ordering** (from `run()` method):
+
+1. **Activate wake lock** (`self.start_Stay_Awake()`)
+2. **Recalculate seconds** (re-ceil from target epoch)
+3. **Start auto-quit timer** (`self._start_auto_quit_timer(secs_to_run)`)
+   - Sets `self.auto_quit_deadline` (monotonic)
+   - Sets `self.auto_quit_walltime` (wall-clock)
+4. **Create main window** (`self.create_main_window()`)
+   - Reads `self.auto_quit_walltime` for ETA field
+   - Schedules first countdown tick (250ms delay)
+5. **Start tray icon** (background thread)
+6. **Enter Tk main loop**
+
+**Why This Order Matters**:
+- Timer must be set before window creation (ETA field needs `self.auto_quit_walltime`)
+- Recalculation must happen last (accounts for all startup overhead)
+- Initial tick delay (250ms) allows window to become viewable
+
+### C.5.2 Timer Cancellation
+
+**When Timer is Cancelled**:
+
+1. **During Cleanup** (`cleanup()` method):
+   - Cancels `self._auto_quit_timer` (threading.Timer)
+   - Cancels `self._countdown_after_id` (Tk after() callback)
+   - Prevents timer firing during shutdown
+
+2. **On Manual Quit**:
+   - User clicks "Quit" button or closes window
+   - `cleanup()` runs via atexit or explicit call
+   - Both timers cancelled before exit
+
+3. **On Signal** (SIGINT/SIGTERM):
+   - Signal handler calls `cleanup()`
+   - Timers cancelled, then `sys.exit(0)`
+
+### C.5.3 DST and Local Time Handling (for `--until`)
+
+**The `--until` parameter uses a robust two-pass mktime validation**:
+
+1. **Parse Timestamp**:
+   - Regex extracts: year, month, day, hour, minute, second
+   - Validates calendar correctness (rejects Feb 31, etc.)
+
+2. **DST Validation** (prevents ambiguous/nonexistent times):
+   - **Pass 1**: Try mktime with `tm_isdst=0` (standard time)
+   - **Pass 2**: Try mktime with `tm_isdst=1` (daylight time)
+   - Round-trip each: convert epoch back to local time
+   - Check if wall-clock components match original
+
+3. **Decision Logic**:
+   - **Both fail** → Nonexistent time (spring-forward gap) → error
+   - **Both succeed with different epochs** → Ambiguous time (fall-back hour) → error
+   - **One succeeds** → Valid time, use that epoch
+   - **Both succeed with same epoch** → Normal time (no DST), use epoch
+
+**Result**: `auto_quit_target_epoch` is a validated local epoch that will fire at the exact specified wall-clock time.
+
+### C.5.4 Bounds Enforcement
+
+**All auto-quit times must satisfy**:
+- Minimum: `MIN_AUTO_QUIT_SECS = 10` (at least 10 seconds)
+- Maximum: `MAX_AUTO_QUIT_SECS = 31,622,400` (366 days)
+
+**Validation Points**:
+1. After parsing `--for` duration
+2. After parsing `--until` timestamp (difference from now)
+3. Before timer activation (final recalculation)
+
+**Exit Code**: `sys.exit(2)` on validation failure (CLI error)
+
+## C.6 Complete Example Scenarios
+
+### C.6.1 Scenario 1: `--for 45m` with Window Minimize/Restore
+
+**Initial State** (45 minutes = 2700 seconds):
+- ETA field: "2025-09-23 16:15:00" (static)
+- Time remaining: "00:45:00"
+- Cadence: "00:05:00" (5 minutes, because 2700 > 1800)
+- Update interval: 300s
+- Snap-to check: 2700 % 300 = 0 → already on boundary
+- Snap adjustment: 0 → add 300s → first update in 5 minutes
+
+**At 40 minutes remaining** (2400s):
+- Time remaining: "00:40:00" (updated)
+- Cadence: "00:05:00" (unchanged)
+- Next update: 5 minutes
+
+**At 32 minutes remaining** (1920s):
+- Time remaining: "00:32:00" (updated)
+- Cadence: "00:05:00" (unchanged, still 1920 > 1800)
+- Next update: 5 minutes
+
+**At 28 minutes remaining** (1680s):
+- Time remaining: "00:28:00" (updated)
+- Band change: 1680 < 1800 but 1680 > 900
+- Cadence: "00:01:00" (changed to 1 minute)
+- Cadence display updates to show "00:01:00"
+- Next update: 1 minute
+
+**User minimizes window at 25 minutes** (1500s):
+- Window visibility: `False`
+- Time remaining continues updating (not displayed)
+- Cadence: 60s (normal for this band)
+- Throttle check: 60s ≥ 60s minimum → no override
+- Updates continue every 60s in background
+
+**At 8 minutes remaining** (480s, still hidden):
+- Band change: 480 < 900 but 480 > 300
+- Normal cadence: 30s
+- Window hidden and 480 > 60
+- Throttle override: max(30s, 60s) → 60s
+- Updates every 60s (throttled)
+
+**At 45 seconds remaining** (still hidden):
+- Band change: 45 < 60 but 45 > 30
+- Normal cadence: 5s
+- Window hidden but 45 ≤ 60 (final minute exception)
+- Throttle disabled
+- Updates every 5s despite hidden window
+
+**User shows window at 30 seconds**:
+- Window visibility: `True`
+- `_schedule_countdown_tick()` called immediately
+- Time remaining updates to current value: "00:00:30"
+- Band: 30 ≤ 30 → cadence 2s
+- Cadence display updates to "00:00:02"
+- Updates every 2 seconds until timeout
+
+### C.6.2 Scenario 2: `--until "2025-09-23 17:00:00"` Started at 16:47:35
+
+**CLI Parsing**:
+- Current time: 16:47:35 (actual)
+- Target: 17:00:00 (specified)
+- Difference: 745 seconds (12 minutes 25 seconds)
+- Validation: 745 ≥ 10 (pass), 745 ≤ 31,622,400 (pass)
+- `auto_quit_target_epoch`: 1695484800.0 (example epoch for 17:00:00)
+
+**Timer Activation** (in `run()`, ~1 second later at 16:47:36):
+- Now: 16:47:36
+- Recalculate: ceil(1695484800.0 - now) = 744 seconds
+- `auto_quit_deadline`: monotonic() + 744
+- `auto_quit_walltime`: 1695484800.0 (exact target)
+
+**Initial Display**:
+- ETA: "2025-09-23 17:00:00"
+- Time remaining: "00:12:24" (744s)
+- Cadence determination: 744 < 900 but 744 > 600 → 30s
+- Snap-to: 744 ≥ 60 → enabled
+  - Phase: 744 % 30 = 24
+  - Snap: 24s = 24,000ms
+  - 24,000 < 30,000 → use snap
+- First update: in 24 seconds (at 00:12:00 remaining)
+
+**At 00:12:00 remaining** (720s):
+- Time remaining: "00:12:00" (snapped to round number)
+- Cadence: "00:00:30" (unchanged)
+- Next update: 30s (normal cadence)
+
+**At 00:09:30 remaining** (570s):
+- Band change: 570 < 600 but 570 > 300 → 30s
+- Cadence: "00:00:30" (unchanged, same band)
+- Next update: 30s
+
+**At 00:04:45 remaining** (285s):
+- Band change: 285 < 300 but 285 > 120 → 15s
+- Cadence: "00:00:15" (changed)
+- Cadence display updates
+- Next update: 15s
+
+**Countdown continues through all bands until timeout at 17:00:00**
+
