@@ -216,6 +216,7 @@ C# using Visual Studio Community edition with specific intent to
 5. **Cleanup**
    * Dispose tray icon.
    * If required, release Mutex.
+   * Dispose trace listener if attached
    * Exit application.
 
 ### 3.2 Alternative outline notation, hopefully consistent with 3.1
