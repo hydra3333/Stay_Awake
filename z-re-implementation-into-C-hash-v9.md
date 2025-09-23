@@ -989,18 +989,18 @@ They ensure the **WinForms project** behaves consistently across reopens and on 
 * **Why:** Matches Python app’s behavior: fixed-size window, DPI-scaled layout, no resize clutter.
 
 
-## B.9.7 Visual Studio **Installer** – workloads & components to tick
+## B.10 Visual Studio **Installer** – workloads & components to tick
 
 Open **Visual Studio Installer -> Modify** for VS 2022 Community:
 
-### Workloads (tab: *Workloads*)
+### B.10.1 Workloads (tab: *Workloads*)
 
 * ✅ **.NET desktop development**
   *(This is the core workload that brings WinForms/WPF tooling.)*
 
 > You don’t need “Desktop development with C++” for this project, and you don’t need “Universal Windows Platform” or “Mobile development” for WinForms on .NET 8.
 
-### Individual components (tab: *Individual components*)
+### B.10.2 Individual components (tab: *Individual components*)
 
 Make sure these are installed (some come with the workload; check if they’re already present):
 * ✅ **.NET 8.0 SDK** (x64)
@@ -1016,7 +1016,7 @@ Nice-to-haves (optional):
 
 > If you have interop or pinned structs for Win32 calls, having the **Windows 11 SDK** avoids mismatches.
 
-## B.9.8 IDE options that help this project (optional but handy)
+## B.10.3 IDE options that help this project (optional but handy)
 
 * **Tools -> Options -> Projects and Solutions -> .NET Core**
   * Ensure **Use previews of the .NET SDK** = **Off** (unless you *want* to test previews).
@@ -1025,7 +1025,7 @@ Nice-to-haves (optional):
 * **Tools -> Options -> Windows Forms Designer**
   * Verify the **designer** opens without errors for `.NET 8 (Windows)` projects. No extra toggle usually needed, but this is where you’d look if it regresses.
 
-## B.9.9 Project property recap (quick check)
+## B.10.4 Project property recap (quick check)
 
 * **Project -> Properties -> Application**
   * Target framework: **.NET 8.0 (Windows)**
@@ -1047,7 +1047,7 @@ Nice-to-haves (optional):
   * **Trim** = **Off** initially (`PublishTrimmed=false`)
   * `IncludeAllContentForSelfExtract=true` *(helps single-file startup; you already set this in the example pubxml)*
 
-## B.9.10 Visual Studio Environment Checklist
+## B.10.5 Visual Studio Environment Checklist
 
 ```
 Stay_Awake — Visual Studio Environment Checklist
@@ -1055,21 +1055,21 @@ Stay_Awake — Visual Studio Environment Checklist
 
 Setup IDE (Visual Studio Installer)
 -----------------------------------
-[ ] Workloads → .NET desktop development
-[ ] Individual components → .NET 8.0 SDK (x64)
-[ ] Individual components → .NET 8.0 Windows Desktop Runtime / Targeting Pack
-[ ] Individual components → Windows 11 SDK (optional but recommended)
+[ ] Workloads -> .NET desktop development
+[ ] Individual components -> .NET 8.0 SDK (x64)
+[ ] Individual components -> .NET 8.0 Windows Desktop Runtime / Targeting Pack
+[ ] Individual components -> Windows 11 SDK (optional but recommended)
 [ ] Ensure NuGet + Git for Windows present
 
 Verify Targeting
 ----------------
-[ ] Project → Properties → Target Framework = .NET 8.0 (Windows)
+[ ] Project -> Properties -> Target Framework = .NET 8.0 (Windows)
 [ ] Debug build defines DEBUG + TRACE
 [ ] Release build defines TRACE only
 
 Manifest (High DPI + Long Paths)
 --------------------------------
-[ ] Project → Properties → Application → Icon and manifest → Use custom manifest
+[ ] Project -> Properties -> Application -> Icon and manifest -> Use custom manifest
 [ ] In app.manifest, set:
     <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">PerMonitorV2</dpiAware>
     <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
@@ -1077,13 +1077,13 @@ Manifest (High DPI + Long Paths)
 Designer
 --------
 [ ] Confirm Form1.cs [Design] opens without error
-[ ] Tools → Options → Windows Forms Designer shows correct options
+[ ] Tools -> Options -> Windows Forms Designer shows correct options
 [ ] Ensure AutoScaleMode = Dpi
 
 Icon
 ----
 [ ] Add Assets\AppIcon.ico (multi-size ICO, prebuilt)
-[ ] Project → Properties → Application → Icon = AppIcon.ico
+[ ] Project -> Properties -> Application -> Icon = AppIcon.ico
 [ ] Leave runtime tray icon to be set in code (TrayManager / IconWriter)
 
 Build
@@ -1095,7 +1095,7 @@ Build
 
 Publish
 -------
-[ ] Project → Publish → Folder profile
+[ ] Project -> Publish -> Folder profile
 [ ] Runtime Identifier = win-x64
 [ ] Deployment = Self-contained
 [ ] File mode = Single file
