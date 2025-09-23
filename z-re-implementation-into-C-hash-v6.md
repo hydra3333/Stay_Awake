@@ -140,17 +140,30 @@ C# using Visual Studio Community edition with specific intent to
     * If already running: attempt to bring existing window to foreground or show tray balloon. If not possible, show modal and exit.
 
 * **Main Window**:
-  * DPI-aware for maximum high quality image display fidelity   
+  * DPI-aware for maximum high quality image display fidelity   .
   * Contains:
-    * Centered **image** (maximum size per global variable, initially 512 px; image is pre auto-sized to a square by **edge replication** (no solid-color padding) so it never need be stretched afterward)
-    * Labels for: blurb, ETA, remaining time, cadence (frequency of gui countdown update, adjusts based on bands of time remaining, throttles when hidden, timer display snaps to neat boundaries when far from the deadline (calm UI))
-  * Window re-sized to cater for image size plus other labels and fields 
-  * User Resizing disabled (via `FormBorderStyle.FixedSingle`, `MaximizeBox=false`)
+    * Centered **image** (maximum size per global variable, initially 512 px; image is pre auto-sized to a square by **edge replication** (no solid-color padding) so it never need be stretched afterward).
+    * Labels for: blurb, ETA, remaining time, cadence (frequency of gui countdown update, adjusts based on bands of time remaining, throttles when hidden, timer display snaps to neat boundaries when far from the deadline (calm UI)).
+  * Window re-sized to cater for image size plus other labels and fields.
+  * User Resizing disabled (via `FormBorderStyle.FixedSingle`, `MaximizeBox=false`).
 
 * **Stay-Awake logic**:
-  * On ready: call `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)`
-  * On quit: call `SetThreadExecutionState(ES_CONTINUOUS)` to clear
-  * please check/confirm this is the case with the working python program as the example 
+  * On ready: call `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)`.
+  * On quit: call `SetThreadExecutionState(ES_CONTINUOUS)` to clear.
+  * please check/confirm this is the case with the working python program as the example .
+  
+* **`Fatal()` logic**: 
+  * Explicitly, Fatal() must work pre-UI (using MessageBox.Show without depending on Form or NotifyIcon).
+  * This avoids confusion later (when deciding if mutex/CLI validation can call Fatal before UI exists).
+
+* **Single-instance flow**:
+  * This behaviour is conditional according to a global boolean variable in the program.
+  * This specification mentions “If already running bring the other instance forward”.
+  * For clarity, first already-running instance is the one being `brought forward` (gain focus) if possible and very easy; inter-process communication et al is specifically not desired; The later instance only signals then exits.
+
+* **NotifyIcon visibility timing**:
+  * the context menu may be created early, but `NotifyIcon.Visible = true` should only be set after the icon image is ready (to avoid flashing the default blank icon). This prevents confusion when coding step 1.4 vs 2.x.
+
 
 ---
 
@@ -161,7 +174,7 @@ C# using Visual Studio Community edition with specific intent to
 1. **Setup/Init**
    1.1 Parse CLI -> validate (`--icon`, `--for`, `--until`, `--verbose`).
    1.2 Validate inputs
-   1.3 Conditionally according to a global variable: Acquire single-instance mutex, If already running bring the other instance forward (or show tray notification) and exit.
+   1.3 Conditionally according to a global boolean variable: Acquire single-instance mutex, If already running bring the other instance forward and exit.
    1.4 Initialize the UI
      * Initialize and configure WinForms (DPI-aware and ensuring AutoScaleMode = Dpi in the form) to provide message dialogs, error popups, Fatal(msg), main window with controls etc.
      * User Resizing disabled hook basic keyboard/mouse.
@@ -197,7 +210,7 @@ C# using Visual Studio Community edition with specific intent to
 
 ```
 1. Setup/Init
-   1.1 Conditionally according to a global variable: Acquire single-instance mutex
+   1.1 Conditionally according to a global boolean variable: Acquire single-instance mutex
        └─ If another instance exists, signal primary to foreground and exit
    1.2 Parse CLI -> validate (log paths, image file, etc.)
    1.3 Validate inputs (paths, duration/DT bounds, exclusivity)
@@ -224,15 +237,15 @@ C# using Visual Studio Community edition with specific intent to
      ├─ Insert squared image in memory into PictureBox.
      ├─ Use multi-size icon as the icon in the windows system-tray; Assign NotifyIcon.Icon and set Visible = true
      └─ Adjust window size if required
-3. Timers & Updates (perhaps ?System.Windows.Forms.Timer?)
-   ├─ Start timers (? System.Windows.Forms.Timer) (? Timers are on the UI thread, simplifying updates.)
+3. Timers & Updates (System.Windows.Forms.Timer (UI thread), not System.Timers.Timer)
+   ├─ Start timers (System.Windows.Forms.Timer (UI thread), not System.Timers.Timer) (Timers are on the UI thread, simplifying updates.)
    ├─ Periodically recalc and update labels according to cadence (countdown update frequency) and related specifications
    └─ Throttle updates to avoid repaints storms
 4. Stay-Awake Logic
    ├─ Once UI + timers are stable, call SetThreadExecutionState
    └─ On quit/exit: Clear, restore defaults, cleanup, exit
 5. Cleanup
-   ├─ Conditionally Release mutex 
+   ├─ Conditionally Release mutex (per global boolean variable)
    ├─ Dispose of NotifyIcon
    └─ Application.Exit()
 ```
@@ -456,7 +469,7 @@ return square, ico
   * When far from the deadline, align (snap) the next tick to a clean boundary (eg the nearest 00 or 30 seconds) to avoid visual jitter
   * Throttle the cadence (GUI update frequency) when the main window is hidden - parity with the example working Python program’s behavior.
 
-### 4.6 Conditional Single-instance guard
+### 4.6 Conditional (per a global boolean variable) Single-instance guard
 
 * Named `SyayAwakeMutex` per a global variable. 
 * Conditionally, if another instance exists:
