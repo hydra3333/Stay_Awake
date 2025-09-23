@@ -152,7 +152,7 @@ C# using Visual Studio Community edition with specific intent to
   * Window re-sized to cater for image size plus other labels and fields.
   * User Resizing disabled (via `FormBorderStyle.FixedSingle`, `MaximizeBox=false`).
 * **Stay-Awake logic**:
-  * On ready: call `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)`.
+  * On ready: call `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)`.
   * On quit: call `SetThreadExecutionState(ES_CONTINUOUS)` to clear.
   * please check/confirm this is the case with the working python program as the example .
 * **`Fatal()` logic**: 
@@ -472,7 +472,7 @@ return square, ico
 
 ### 4.4 Stay-Awake logic (Win32)
 
-* Use **`SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)`** when armed, and call again with `ES_CONTINUOUS` on **quit** to clear.
+* Use **`SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED)`** when armed, and call again with `ES_CONTINUOUS` on **quit** to clear.
 * Verify these states with what is used in the working example python program
 * In testing, verify requests with `powercfg -requests` (docs mention this in Python README).
 
