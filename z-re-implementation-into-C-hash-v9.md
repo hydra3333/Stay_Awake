@@ -1047,5 +1047,62 @@ Nice-to-haves (optional):
   * **Trim** = **Off** initially (`PublishTrimmed=false`)
   * `IncludeAllContentForSelfExtract=true` *(helps single-file startup; you already set this in the example pubxml)*
 
+## B.9.10 Visual Studio Environment Checklist
 
-Would you like me to also create that **one-page tick-box checklist** (Setup IDE -> Verify targeting -> Manifest -> Designer -> Icon -> Build -> Publish) so you can literally print it and tape it next to the VM?
+```
+Stay_Awake — Visual Studio Environment Checklist
+================================================
+
+Setup IDE (Visual Studio Installer)
+-----------------------------------
+[ ] Workloads → .NET desktop development
+[ ] Individual components → .NET 8.0 SDK (x64)
+[ ] Individual components → .NET 8.0 Windows Desktop Runtime / Targeting Pack
+[ ] Individual components → Windows 11 SDK (optional but recommended)
+[ ] Ensure NuGet + Git for Windows present
+
+Verify Targeting
+----------------
+[ ] Project → Properties → Target Framework = .NET 8.0 (Windows)
+[ ] Debug build defines DEBUG + TRACE
+[ ] Release build defines TRACE only
+
+Manifest (High DPI + Long Paths)
+--------------------------------
+[ ] Project → Properties → Application → Icon and manifest → Use custom manifest
+[ ] In app.manifest, set:
+    <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">PerMonitorV2</dpiAware>
+    <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+
+Designer
+--------
+[ ] Confirm Form1.cs [Design] opens without error
+[ ] Tools → Options → Windows Forms Designer shows correct options
+[ ] Ensure AutoScaleMode = Dpi
+
+Icon
+----
+[ ] Add Assets\AppIcon.ico (multi-size ICO, prebuilt)
+[ ] Project → Properties → Application → Icon = AppIcon.ico
+[ ] Leave runtime tray icon to be set in code (TrayManager / IconWriter)
+
+Build
+-----
+[ ] FormBorderStyle = FixedSingle
+[ ] MaximizeBox = false
+[ ] MinimizeBox = true
+[ ] Debug messages go to Trace.WriteLine (respecting --verbose + FORCED_TRACE)
+
+Publish
+-------
+[ ] Project → Publish → Folder profile
+[ ] Runtime Identifier = win-x64
+[ ] Deployment = Self-contained
+[ ] File mode = Single file
+[ ] PublishTrimmed = false
+[ ] IncludeAllContentForSelfExtract = true
+
+------------------------------------------------
+When all boxes are ticked, the environment matches spec (Appendix B.9)
+and then you can safely begin coding.
+```
