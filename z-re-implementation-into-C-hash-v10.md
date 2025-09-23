@@ -765,7 +765,7 @@ Stay_Awake/                              <- Solution root (on disk)
 * **UI split**: `MainForm` focuses on UI, `TrayManager` on NotifyIcon/menu.
 * **Imaging split** keeps responsibilities crisp and matches 4.3/4.3.1.
 * **Cli/** isolates parsing so `Program.cs` remains short and readable.
-* **Stay_Awake/** holds SetThreadExecutionState wrapper and the “armed” boolean for `Fatal()` cleanup.
+* **PowerManagement/** holds SetThreadExecutionState wrapper and the “armed” boolean for `Fatal()` cleanup.
 
 ---
 
