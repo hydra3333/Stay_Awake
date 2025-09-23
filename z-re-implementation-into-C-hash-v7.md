@@ -159,7 +159,7 @@ C# using Visual Studio Community edition with specific intent to
   * This avoids confusion later (when deciding if mutex/CLI validation can call Fatal before UI exists).
 * **Single-instance flow**:
   * This behaviour is conditional according to a global boolean variable in the program.
-  * This specification mentions “If already running bring the other instance forward”.
+  * This specification mentions "If already running bring the other instance forward".
   * For clarity, first already-running instance is the one being `brought forward` (gain focus) if possible and very easy; inter-process communication et al is specifically not desired; The later instance only signals then exits.
 * **NotifyIcon visibility timing**:
   * The context menu may be created early, but `NotifyIcon.Visible = true` should only be set after the icon image is ready (to avoid flashing the default blank icon). This prevents confusion when coding step 1.4 vs 2.x.
@@ -184,7 +184,7 @@ C# using Visual Studio Community edition with specific intent to
      * Initialize and configure WinForms (DPI-aware and ensuring AutoScaleMode = Dpi in the form) to provide message dialogs, error popups, Fatal(msg), main window with controls etc.    
      * User Resizing disabled hook basic keyboard/mouse.    
      * The form layout and labels and buttons are to be positioned and look exactly like as used in the example python program    
-     * Build context menu (“Show/Minimize/Quit”) per the python example    
+     * Build context menu ("Show/Minimize/Quit") per the python example    
      * Fatal(msg) on error: modal error dialog, **clear stay-awake** if set, exit.    
        * Note: Fatal() must be callable before the Form exists. Pre-UI Fatal must only show a MessageBox and exit; no tray or form interaction.    
      * The Image and the Tray icon will be done in a future step and not here    
@@ -237,7 +237,7 @@ C# using Visual Studio Community edition with specific intent to
             ├─ Hook keyboard/mouse events
             ├─ Disable user resize and maximize button
             ├─ Create system tray menu (NotifyIcon + ContextMenuStrip)
-            └─ “Show Window” / “Minimize to System Tray” / “Quit”
+            └─ "Show Window" / "Minimize to System Tray" / "Quit"
    1.6 Init time/timezone helpers
        └─ TimeZoneInfo.Local + Win32 check for DST edges
 2. Image preparation and insertion
@@ -453,15 +453,17 @@ return square, ico
   * At **runtime** you can also save the memory ICO to disk once (e.g., `%LocalAppData%`) and set it for shortcuts you create programmatically (if any).
   * For publishing a static EXE, it’s typical to set a **design-time ICO** in Project Properties that matches what you build at runtime.
 
-##### G) Tests (what “done” looks like)
+##### G) Tests (what "done" looks like)
 
 1. **Load**: PNG/JPG/BMP/GIF/ICO source paths load; non-existent path -> fatal with clear message.
 2. **Square**: non-square inputs produce perfectly square outputs with **replicated edges**, no solid bars, no distortion.
-3. **Icon**: resulting `.ico` has frames at exactly `[16,20,24,32,40,48,64,128,256]`.
-4. **Visual**:
+3. **Even**: make the square an even number of pixels.
+4. **Resize**: if necessary, resize the image to the specified number of pixels.
+5. **Icon**: resulting `.ico` has frames at exactly `[16,20,24,32,40,48,64,128,256]`.
+6. **Visual**:
    * On 100%/125%/150%/200% DPI monitors, tray and taskbar icons look **crisp** (no fuzzy scaling).
    * Explorer shows a sharp **256×256 thumbnail** for the app if you set it as Application Icon.
-5. **Resource hygiene**: pin a breakpoint in `FormClosing` and confirm `NotifyIcon.Dispose()` is called; no GDI handle leaks.
+7. **Resource hygiene**: pin a breakpoint in `FormClosing` and confirm `NotifyIcon.Dispose()` is called; no GDI handle leaks.
 
 ##### H) Future options
 
@@ -486,7 +488,7 @@ return square, ico
 * Named `SyayAwakeMutex` per a global variable. 
 * Conditionally, if another instance exists:
   * Try to **find the window** of the existing instance (e.g., via a named **Win32 message** or **mutex+named pipe** handshake) and **restore/activate** it.
-  * Fallback: show a MessageBox in the second instance (“already running”) and exit.
+  * Fallback: show a MessageBox in the second instance ("already running") and exit.
 
 ### 4.7 Error handling & `Fatal()` policy
 
@@ -548,20 +550,25 @@ struct ImageAssets
 
 ### 4.11 Verbose tracing & log file (runtime; FORCED_TRACE + --verbose)
 
-**Goal**: Provide developer and user-visible diagnostics without external tools. Use Trace.WriteLine(...) everywhere (not Debug.WriteLine). We do not toggle the compile-time TRACE symbol at runtime; instead, we attach/detach Trace listeners based on --verbose and global variable or constant FORCED_TRACE set to true or false by the developer.
+**Goal**: 
+* Provide ample developer and user-visible diagnostics without external tools. 
+
+**Using**
+* Use Trace.WriteLine(...) everywhere (not Debug.WriteLine). 
+* We do not toggle the compile-time TRACE symbol at runtime; instead, we attach/detach Trace listeners based on `--verbose` and global variable or constant `FORCED_TRACE` set to true or false by the developer.
 
 #### 4.11.1 Controls & globals
 
 * Developer-only boolean switch:
-  FORCED_TRACE (bool; default false). If true, tracing is always enabled regardless of CLI.
+  * FORCED_TRACE (bool; default false). If true, tracing is always enabled regardless of CLI.
 * Runtime flag:
-  TRACE_ENABLED (bool) - computed at startup:
-  `TRACE_ENABLED = FORCED_TRACE || args.Has("--verbose")`
+  * `TRACE_ENABLED` (bool) - computed at startup:
+  * `TRACE_ENABLED = FORCED_TRACE || args.Has("--verbose")`
 * Paths (globals):
-  LOG_FILE_BASENAME = `"StayAwake_Trace_{yyyyMMdd}.log"` (zero-padded date fields)
-  LOG_PRIMARY_DIR = `<directory containing the EXE>`
-  LOG_FALLBACK_DIR = `%LocalAppData%\StayAwake\Logs`
-  LOG_FULL_PATH (resolved final path; stored in AppState)
+  * `LOG_FILE_BASENAME` = `"StayAwake_Trace_{yyyyMMdd}.log"` (zero-padded date fields)
+  * `LOG_PRIMARY_DIR` = `<directory containing the EXE>`
+  * `LOG_FALLBACK_DIR` = `%LocalAppData%\StayAwake\Logs`
+  * `LOG_FULL_PATH` (resolved final path; stored in AppState)
 * Listener name: `"FileTraceListener"`
 
 #### 4.11.2 Runtime setup (executed in Setup/Init 3.1.2)
@@ -569,39 +576,40 @@ struct ImageAssets
 * If `TRACE_ENABLED == true`:
   1. `Trace.Listeners.Clear()` (remove default listener; nothing goes to OS debug stream).
   2. Compute LOG_FULL_PATH:
-    - Try primary: `<EXE folder>\StayAwake_Trace_YYYYMMDD.log` with overwrite semantics (FileMode.Create).
-    - If access denied or IO error, create the folder `%LocalAppData%\StayAwake\Logs` and set LOG_FULL_PATH to that location.
+      - Try primary: `<EXE folder>\StayAwake_Trace_YYYYMMDD.log` with overwrite semantics (FileMode.Create).
+      - If access denied or IO error, create the folder `%LocalAppData%\StayAwake\Logs` and set LOG_FULL_PATH to that location.
   3. Create a `TextWriterTraceListener(LOG_FULL_PATH) named `"FileTraceListener"`.
   4. `Trace.Listeners.Add(...)`; `Trace.AutoFlush = true` (recommended: `Trace.UseGlobalLock = true`).
   5. Emit a header line with absolute path and UTC/local timestamp, app version, CLI args (minus secrets), and DPI/machine basics.
-* If TRACE_ENABLED == false:
+* If `TRACE_ENABLED == false`:
   1. `Trace.Listeners.Clear()` and do not add any listener (no output anywhere).
 * When tracing is off, we clear all Trace listeners so nothing is emitted.
 
 #### 4.11.3 Usage guidance
 
-* Use `Trace.WriteLine(...)` consistently for all diagnostics (including what was formerly considered “Debug”).
-* Add context prefixes (e.g., `[Init]`, `[Image]`, `[Icon]`, `[Timer]`, `[StayAwake]`) to each line for easy grepping.
+* Use `Trace.WriteLine(...)` consistently for all diagnostics (including what was formerly considered "Debug").
+* Use and Add consistent context prefixes (e.g., `[Init]`, `[Image]`, `[Icon]`, `[Timer]`, `[StayAwake]`) to the start of each trace line, for easy grepping.
 * Example patterns (not code):
-  - "[Init] Entered ParseCli()", "[Init] Exiting ParseCli()"
-  - "[Image] MakeSquare: 320×200 → 320×320 (replicated edges)"
-  - "[Timer] Next tick in 10s; cadence=1s; remaining=00:12:34"
+  - "`[Init] Entered ParseCli()`", "`[Init] Exiting ParseCli()`"
+  - "`[Image] MakeSquare: 320×200 -> 320×320 (replicated edges)`"
+  - "`[Timer] Next tick in 10s; cadence=1s; remaining=00:12:34`"
 
 #### 4.11.4 Error handling & fallbacks
 
-* If both primary and fallback log paths fail (very rare), keep `Trace.Listeners.Clear()` and provide code for (but disabled with a fixed boolean False) show a one-liner `MessageBox` stating: “Verbose logging could not be started; continuing without a log file.”
+* If both primary and fallback log paths fail (very rare), keep `Trace.Listeners.Clear()` and provide code for (but disabled with a fixed boolean False) show a one-liner `MessageBox` stating: "Verbose logging could not be started; continuing without a log file."
 * Do not `Fatal()` just because logging failed.
 
 #### 4.11.5 Lifecycle
 
-* On normal exit or fatal exit, flush/close the listener (disposing the `TextWriterTraceListener`) so the file handle is released.
-* When auto-quit triggers (valid `--for/--until`): exit code 0 (success), log a final line “graceful exit.”
+* On normal exit or fatal exit, flush/close the "listener" (disposing the `TextWriterTraceListener`) so the file handle is released.
+* When auto-quit triggers (valid `--for/--until`): exit code 0 (success), log a final line "`graceful exit`"
 
 #### 4.11.6 Security/PII
 
 * Avoid logging full file contents or secrets.
-* Truncate very long CLI strings; if you later add credentials, redact them.
-* The log file lives next to the EXE or in `%LocalAppData%` - document the path in the first log line.
+* Truncate very long CLI strings. 
+* If credentials are used, redact them with `*`.
+* The log file preverably lives next to the EXE, or fallback in `%LocalAppData%` - document the path in the first log line.
 
 ---
 
@@ -667,7 +675,7 @@ struct ImageAssets
 
 * **VM hygiene**:
   * Use **Checkpoints** before major installs.
-  * Keep a **“golden” VM** (fresh VS + SDKs + Windows updated) and clone for experiments.
+  * Keep a **"golden" VM** (fresh VS + SDKs + Windows updated) and clone for experiments.
 
 ---
 
@@ -675,14 +683,14 @@ struct ImageAssets
 
 * **Think like a maintainer**: assume the next dev is a beginner.
 * **Prefer clarity over performance**.
-* **Name things verbosely but with clarity of purpose**
+* **Name things verbosely and with clarity of purpose**.
 * **Never skip comments**: no code should rely solely on context/content.
 * **Avoid premature optimization**: instead favor **clarity** and **comments**.
 * **Encapsulate** tray logic in a helper class - don’t bloat `Form1.cs`.
-* **Keep all cross-cutting logic in one place** to avoid leaks. (mutex, fatal, stay-awake on/off) 
+* **Keep all cross-cutting logic in one place** to avoid leaks. (mutex, fatal, stay-awake on/off) .
 * **Prefer pure methods** for parsing/formatting (easy to unit test later).
 * **Unit-test parsing functions separately** (e.g., ForDuration parser).
-* **Iterate**: implement, run, and test small slices before proceeding ; after each step, **F5** and verify in the Output window.
+* **Iterate**: implement, run, and test small slices before proceeding ; In Visual Studio after each step, **F5** and verify in the Output window.
 
 ---
 
@@ -693,7 +701,7 @@ Assuming we define global constants along the lines:
 MIN_AUTO_QUIT_SECS = 10         // 10 seconds
 MAX_AUTO_QUIT_SECS = 31557600   // (=365.25 days * 24 * 60 * 60)
 ```
-then the Bounds below are controlled by constants MIN_AUTO_QUIT_SECS and MAX_AUTO_QUIT_SECS.
+then the Bounds below are controlled by constants `MIN_AUTO_QUIT_SECS` and `MAX_AUTO_QUIT_SECS`.
 ```text
 --icon PATH
     Use a specific image file for the window/tray icon.
